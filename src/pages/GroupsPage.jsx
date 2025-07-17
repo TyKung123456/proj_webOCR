@@ -113,7 +113,7 @@ const GroupsPage = ({
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent">
+                  <h1 className="text-3xl font-bold text-red-600">
                     Anomaly Detection
                   </h1>
                   <p className="text-gray-600 mt-2">System groups documents with anomalies or incorrect data</p>

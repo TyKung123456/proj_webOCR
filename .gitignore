@@ -5,5 +5,4 @@ ocr-frontend/
 (Back up)
 src/components/FileUpload.jsx
 uploads
-database.js
 .env

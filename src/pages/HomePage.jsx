@@ -1,7 +1,7 @@
 // src/pages/HomePage.jsx - Updated Complete Version
 import React from 'react';
 
-const HomePage = ({ 
+const HomePage = ({
   files, deleteFile, setSelectedFile, setShowReportModal,
   currentDate, currentTime, currentPage, setCurrentPage,
   sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed,
@@ -12,11 +12,9 @@ const HomePage = ({
   return (
     <div className="flex">
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 bg-white shadow-2xl transform transition-all duration-300 ease-in-out ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      } lg:translate-x-0 lg:relative lg:flex lg:flex-col ${
-        sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'
-      } w-64`}>
+      <div className={`fixed inset-y-0 left-0 z-50 bg-white shadow-2xl transform transition-all duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } lg:translate-x-0 lg:relative lg:flex lg:flex-col ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'
+        } w-64`}>
         <div className={`flex items-center justify-between p-6 border-b border-gray-200 ${sidebarCollapsed ? 'lg:p-3' : ''}`}>
           {!sidebarCollapsed && (
             <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -39,15 +37,14 @@ const HomePage = ({
             </button>
           </div>
         </div>
-        
+
         <nav className={`p-6 flex-1 ${sidebarCollapsed ? 'lg:p-3' : ''}`}>
           <ul className="space-y-3">
             <li>
               <button
                 onClick={() => { setCurrentPage('home'); setSidebarOpen(false); }}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'lg:justify-center' : 'space-x-3'} px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                  currentPage === 'home' ? 'bg-blue-100 text-blue-600 shadow-md' : 'hover:bg-gray-100 text-gray-700'
-                }`}
+                className={`w-full flex items-center ${sidebarCollapsed ? 'lg:justify-center' : 'space-x-3'} px-4 py-3 rounded-xl text-left transition-all duration-200 ${currentPage === 'home' ? 'bg-blue-100 text-blue-600 shadow-md' : 'hover:bg-gray-100 text-gray-700'
+                  }`}
                 title={sidebarCollapsed ? "Home" : ""}
               >
                 <span className="text-xl">📄</span>
@@ -57,9 +54,8 @@ const HomePage = ({
             <li>
               <button
                 onClick={() => { setCurrentPage('groups'); setSidebarOpen(false); }}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'lg:justify-center' : 'space-x-3'} px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                  currentPage === 'groups' ? 'bg-red-100 text-red-600 shadow-md' : 'hover:bg-gray-100 text-gray-700'
-                }`}
+                className={`w-full flex items-center ${sidebarCollapsed ? 'lg:justify-center' : 'space-x-3'} px-4 py-3 rounded-xl text-left transition-all duration-200 ${currentPage === 'groups' ? 'bg-red-100 text-red-600 shadow-md' : 'hover:bg-gray-100 text-gray-700'
+                  }`}
                 title={sidebarCollapsed ? "Anomaly Detection" : ""}
               >
                 <span className="text-xl">🔍</span>
@@ -69,9 +65,8 @@ const HomePage = ({
             <li>
               <button
                 onClick={() => { setCurrentPage('dashboard'); setSidebarOpen(false); }}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'lg:justify-center' : 'space-x-3'} px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                  currentPage === 'dashboard' ? 'bg-blue-100 text-blue-600 shadow-md' : 'hover:bg-gray-100 text-gray-700'
-                }`}
+                className={`w-full flex items-center ${sidebarCollapsed ? 'lg:justify-center' : 'space-x-3'} px-4 py-3 rounded-xl text-left transition-all duration-200 ${currentPage === 'dashboard' ? 'bg-blue-100 text-blue-600 shadow-md' : 'hover:bg-gray-100 text-gray-700'
+                  }`}
                 title={sidebarCollapsed ? "Dashboard" : ""}
               >
                 <span className="text-xl">📊</span>
@@ -125,7 +120,7 @@ const HomePage = ({
                   <div className="text-4xl text-blue-500">📄</div>
                 </div>
               </div>
-              
+
               <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 transform transition-all duration-300 hover:scale-105">
                 <div className="flex items-center justify-between">
                   <div>
@@ -140,7 +135,7 @@ const HomePage = ({
                   <div className="text-4xl text-green-500">📅</div>
                 </div>
               </div>
-              
+
               <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500 transform transition-all duration-300 hover:scale-105">
                 <div className="flex items-center justify-between">
                   <div>
@@ -152,7 +147,7 @@ const HomePage = ({
                   <div className="text-4xl text-yellow-500">⏳</div>
                 </div>
               </div>
-              
+
               <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500 transform transition-all duration-300 hover:scale-105">
                 <div className="flex items-center justify-between">
                   <div>
@@ -169,13 +164,6 @@ const HomePage = ({
             {/* Action Buttons */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex flex-wrap gap-4">
-                <button 
-                  onClick={() => setShowUploadModal(true)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105"
-                >
-                  <span>📤</span>
-                  <span>Upload Files</span>
-                </button>
                 <button className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105">
                   <span>📊</span>
                   <span>Export CSV</span>
@@ -186,13 +174,6 @@ const HomePage = ({
                 >
                   <span>📈</span>
                   <span>Generate Report</span>
-                </button>
-                <button 
-                  onClick={() => setShowChatModal(true)}
-                  className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105"
-                >
-                  <span>💬</span>
-                  <span>AI Assistant</span>
                 </button>
               </div>
             </div>
@@ -221,7 +202,7 @@ const HomePage = ({
                           <div className="text-6xl mb-4">📂</div>
                           <p className="text-lg">No files found</p>
                           <p className="text-sm">Upload some files to get started!</p>
-                          <button 
+                          <button
                             onClick={() => setShowUploadModal(true)}
                             className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-all duration-300"
                           >
@@ -243,13 +224,12 @@ const HomePage = ({
                             {file.uploadedAt || file.uploaded_at || '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              file.status === 'Processed' 
-                                ? 'bg-green-100 text-green-800' 
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${file.status === 'Processed'
+                                ? 'bg-green-100 text-green-800'
                                 : file.status === 'Processing'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
                               {file.status || 'Unknown'}
                             </span>
                           </td>

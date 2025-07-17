@@ -282,7 +282,7 @@ const DashboardPage = ({
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white transform transition-all duration-300 hover:scale-105 hover:shadow-2xl">
+              <div className="bg-yellow-500 rounded-2xl p-6 text-white transform transition-all duration-300 hover:scale-105 hover:shadow-2xl">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-3xl font-bold">{todayFiles.length}</h3>
