@@ -1,4 +1,4 @@
-// src/pages/HomePage.jsx - Complete version with Action Buttons
+// src/pages/HomePage.jsx - Added CSV Export functionality
 import React, { useState, useEffect } from 'react';
 
 const HomePage = ({
@@ -38,6 +38,48 @@ const HomePage = ({
   useEffect(() => {
     setCurrentTablePage(1);
   }, [filterText, rowsPerPage]);
+
+  // --- ⭐️ จุดที่แก้ไข: เพิ่มฟังก์ชันสำหรับ Export CSV ---
+  const handleExportCSV = () => {
+    if (filteredFiles.length === 0) {
+      alert("No data to export.");
+      return;
+    }
+
+    // 1. กำหนดหัวข้อคอลัมน์
+    const headers = ["ID", "Filename", "Type", "Uploaded Date", "Status"];
+
+    // 2. แปลงข้อมูลแต่ละแถวให้เป็น CSV format
+    // จัดการกับเครื่องหมาย " และ , ในชื่อไฟล์
+    const rows = filteredFiles.map(file => {
+      const escapedFilename = `"${(file.name || file.original_name || file.filename || 'Unknown').replace(/"/g, '""')}"`;
+      return [
+        file.id,
+        escapedFilename,
+        file.type || file.file_type || 'Unknown',
+        file.uploadedAt || file.uploaded_at || '-',
+        file.similarity_status || 'Unknown'
+      ].join(',');
+    });
+
+    // 3. รวมหัวข้อและข้อมูลทั้งหมดเข้าด้วยกัน
+    const csvContent = [headers.join(','), ...rows].join('\n');
+
+    // 4. สร้าง Blob และลิ้งค์เพื่อดาวน์โหลด
+    // เพิ่ม BOM (\uFEFF) เพื่อให้ Excel เปิดไฟล์ภาษาไทยได้ถูกต้อง
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", `customer_files_${today}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
 
   return (
     <div className="flex">
@@ -191,10 +233,14 @@ const HomePage = ({
               </div>
             </div>
 
-            {/* --- ⭐️ จุดที่แก้ไข: เพิ่มโค้ดส่วนนี้กลับเข้ามา --- */}
+            {/* Action Buttons */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex flex-wrap gap-4">
-                <button className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105">
+                {/* --- ⭐️ จุดที่แก้ไข: เพิ่ม onClick ให้กับปุ่มนี้ --- */}
+                <button
+                  onClick={handleExportCSV}
+                  className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105"
+                >
                   <span>📊</span>
                   <span>Export CSV</span>
                 </button>
@@ -266,12 +312,12 @@ const HomePage = ({
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-3 py-1 rounded-full text-sm font-medium ${file.similarity_status === 'complete'
-                                ? 'bg-green-100 text-green-800'
-                                : file.similarity_status === 'in process'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : file.similarity_status === 'pending'
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : 'bg-gray-100 text-gray-800'
+                              ? 'bg-green-100 text-green-800'
+                              : file.similarity_status === 'in process'
+                                ? 'bg-blue-100 text-blue-800'
+                                : file.similarity_status === 'pending'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-gray-100 text-gray-800'
                               }`}>
                               {file.similarity_status || 'Unknown'}
                             </span>
