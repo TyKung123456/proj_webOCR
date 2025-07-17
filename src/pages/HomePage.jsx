@@ -1,5 +1,5 @@
 // src/pages/HomePage.jsx - Updated Complete Version
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const HomePage = ({
   files, deleteFile, setSelectedFile, setShowReportModal,
@@ -9,12 +9,47 @@ const HomePage = ({
 }) => {
   const today = new Date().toISOString().slice(0, 10);
 
+  // --- State ใหม่สำหรับการฟิลเตอร์และแบ่งหน้า ---
+  const [filterText, setFilterText] = useState('');
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [currentTablePage, setCurrentTablePage] = useState(1);
+
+  // --- Logic การฟิลเตอร์ข้อมูล ---
+  // ฟิลเตอร์ข้อมูลจาก props `files` ก่อนนำไปแสดงผล
+  const filteredFiles = files.filter(file => {
+    if (!filterText) return true; // ถ้าไม่มีข้อความค้นหา ให้แสดงทั้งหมด
+    const lowercasedFilter = filterText.toLowerCase();
+
+    // สร้างข้อความสำหรับค้นหาจากหลายๆ field
+    const searchableContent = [
+      file.id,
+      file.name || file.original_name || file.filename,
+      file.type || file.file_type,
+      // แปลง object `extracted_entities` เป็น JSON string เพื่อให้ค้นหาได้
+      JSON.stringify(file.extracted_entities || {})
+    ].join(' ').toLowerCase();
+
+    return searchableContent.includes(lowercasedFilter);
+  });
+
+  // --- Logic การแบ่งหน้า (Pagination) ---
+  const totalPages = Math.ceil(filteredFiles.length / rowsPerPage);
+  const startIndex = (currentTablePage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedFiles = filteredFiles.slice(startIndex, endIndex);
+
+  // เมื่อมีการเปลี่ยนค่า filter หรือจำนวนแถว ให้กลับไปหน้า 1 เสมอ
+  useEffect(() => {
+    setCurrentTablePage(1);
+  }, [filterText, rowsPerPage]);
+
   return (
     <div className="flex">
-      {/* Sidebar */}
+      {/* Sidebar (ไม่มีการเปลี่ยนแปลง) */}
       <div className={`fixed inset-y-0 left-0 z-50 bg-white shadow-2xl transform transition-all duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0 lg:relative lg:flex lg:flex-col ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'
         } w-64`}>
+        {/* ... โค้ด Sidebar ... */}
         <div className={`flex items-center justify-between p-6 border-b border-gray-200 ${sidebarCollapsed ? 'lg:p-3' : ''}`}>
           {!sidebarCollapsed && (
             <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -37,7 +72,6 @@ const HomePage = ({
             </button>
           </div>
         </div>
-
         <nav className={`p-6 flex-1 ${sidebarCollapsed ? 'lg:p-3' : ''}`}>
           <ul className="space-y-3">
             <li>
@@ -77,7 +111,7 @@ const HomePage = ({
         </nav>
       </div>
 
-      {/* Overlay for mobile */}
+      {/* Overlay for mobile (ไม่มีการเปลี่ยนแปลง) */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
@@ -87,7 +121,9 @@ const HomePage = ({
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
+        {/* Header (ไม่มีการเปลี่ยนแปลง) */}
         <header className="bg-white shadow-sm border-b border-gray-200">
+          {/* ... โค้ด Header ... */}
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center space-x-4">
               <button
@@ -109,8 +145,9 @@ const HomePage = ({
 
         <main className="flex-1 p-6 overflow-auto">
           <div className="space-y-6">
-            {/* Stats Cards */}
+            {/* Stats Cards (ไม่มีการเปลี่ยนแปลง) */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* ... โค้ด Stats Cards ... */}
               <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 transform transition-all duration-300 hover:scale-105">
                 <div className="flex items-center justify-between">
                   <div>
@@ -161,8 +198,9 @@ const HomePage = ({
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Buttons (ไม่มีการเปลี่ยนแปลง) */}
             <div className="bg-white rounded-xl shadow-lg p-6">
+              {/* ... โค้ด Action Buttons ... */}
               <div className="flex flex-wrap gap-4">
                 <button className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105">
                   <span>📊</span>
@@ -178,14 +216,25 @@ const HomePage = ({
               </div>
             </div>
 
-            {/* Files Table */}
+            {/* Files Table (มีการอัปเดต) */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
               <div className="p-6 border-b border-gray-200">
-                <h3 className="text-xl font-semibold text-gray-800">Recent Files</h3>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <h3 className="text-xl font-semibold text-gray-800">Recent Files</h3>
+                  {/* --- UI ใหม่: ช่องค้นหา --- */}
+                  <input
+                    type="text"
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    placeholder="Filter by name, ID, or extracted data..."
+                    className="px-4 py-2 border border-gray-300 rounded-lg w-full md:w-auto"
+                  />
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full">
                   <thead className="bg-gray-50">
+                    {/* ... โค้ด thead ... */}
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">FILENAME</th>
@@ -196,23 +245,26 @@ const HomePage = ({
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {files.length === 0 ? (
+                    {paginatedFiles.length === 0 ? ( // เปลี่ยนจาก files.length
                       <tr>
                         <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
                           <div className="text-6xl mb-4">📂</div>
                           <p className="text-lg">No files found</p>
-                          <p className="text-sm">Upload some files to get started!</p>
-                          <button
-                            onClick={() => setShowUploadModal(true)}
-                            className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-all duration-300"
-                          >
-                            Upload Your First File
-                          </button>
+                          <p className="text-sm">{filterText ? 'Try adjusting your filter.' : 'Upload some files to get started!'}</p>
+                          {!filterText && (
+                            <button
+                              onClick={() => setShowUploadModal(true)}
+                              className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-all duration-300"
+                            >
+                              Upload Your First File
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ) : (
-                      files.map((file) => (
+                      paginatedFiles.map((file) => ( // เปลี่ยนจาก files.map
                         <tr key={file.id} className="hover:bg-gray-50 transition-colors duration-200">
+                          {/* ... โค้ด tr และ td ... */}
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{file.id}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {file.name || file.original_name || file.filename || 'Unknown'}
@@ -225,10 +277,10 @@ const HomePage = ({
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-3 py-1 rounded-full text-xs font-medium ${file.status === 'Processed'
-                                ? 'bg-green-100 text-green-800'
-                                : file.status === 'Processing'
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-gray-100 text-gray-800'
+                              ? 'bg-green-100 text-green-800'
+                              : file.status === 'Processing'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-gray-100 text-gray-800'
                               }`}>
                               {file.status || 'Unknown'}
                             </span>
@@ -264,13 +316,53 @@ const HomePage = ({
                   </tbody>
                 </table>
               </div>
+              {/* --- UI ใหม่: ส่วนควบคุมการแบ่งหน้า --- */}
+              {totalPages > 1 && (
+                <div className="p-4 border-t border-gray-200 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-700">Rows per page:</span>
+                    <select
+                      value={rowsPerPage}
+                      onChange={(e) => setRowsPerPage(Number(e.target.value))}
+                      className="border border-gray-300 rounded-md px-2 py-1 text-sm"
+                    >
+                      {[10, 25, 50, 100].map(size => (
+                        <option key={size} value={size}>{size}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm text-gray-700">
+                      Page {currentTablePage} of {totalPages}
+                    </span>
+                    <div className="flex space-x-1">
+                      <button
+                        onClick={() => setCurrentTablePage(p => Math.max(1, p - 1))}
+                        disabled={currentTablePage === 1}
+                        className="px-3 py-1 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        onClick={() => setCurrentTablePage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentTablePage === totalPages}
+                        className="px-3 py-1 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </main>
       </div>
 
-      {/* Floating Action Buttons */}
+      {/* Floating Action Buttons (ไม่มีการเปลี่ยนแปลง) */}
       <div className="fixed bottom-6 right-6 flex flex-col space-y-4 z-40">
+        {/* ... โค้ด Floating Action Buttons ... */}
         <button
           onClick={() => setShowChatModal(true)}
           className="bg-purple-500 hover:bg-purple-600 text-white p-4 rounded-full shadow-2xl transform transition-all duration-300 hover:scale-110"
