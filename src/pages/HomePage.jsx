@@ -1,4 +1,4 @@
-// src/pages/HomePage.jsx - Updated Complete Version
+// src/pages/HomePage.jsx - Complete version with Action Buttons
 import React, { useState, useEffect } from 'react';
 
 const HomePage = ({
@@ -9,47 +9,42 @@ const HomePage = ({
 }) => {
   const today = new Date().toISOString().slice(0, 10);
 
-  // --- State ใหม่สำหรับการฟิลเตอร์และแบ่งหน้า ---
   const [filterText, setFilterText] = useState('');
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [currentTablePage, setCurrentTablePage] = useState(1);
 
-  // --- Logic การฟิลเตอร์ข้อมูล ---
-  // ฟิลเตอร์ข้อมูลจาก props `files` ก่อนนำไปแสดงผล
   const filteredFiles = files.filter(file => {
-    if (!filterText) return true; // ถ้าไม่มีข้อความค้นหา ให้แสดงทั้งหมด
+    if (!filterText) return true;
     const lowercasedFilter = filterText.toLowerCase();
 
-    // สร้างข้อความสำหรับค้นหาจากหลายๆ field
     const searchableContent = [
       file.id,
       file.name || file.original_name || file.filename,
       file.type || file.file_type,
-      // แปลง object `extracted_entities` เป็น JSON string เพื่อให้ค้นหาได้
+      file.similarity_status,
+      JSON.stringify(file.extract_entity || {}),
+      JSON.stringify(file.extract_taxid || ''),
       JSON.stringify(file.extracted_entities || {})
     ].join(' ').toLowerCase();
 
     return searchableContent.includes(lowercasedFilter);
   });
 
-  // --- Logic การแบ่งหน้า (Pagination) ---
   const totalPages = Math.ceil(filteredFiles.length / rowsPerPage);
   const startIndex = (currentTablePage - 1) * rowsPerPage;
   const endIndex = startIndex + rowsPerPage;
   const paginatedFiles = filteredFiles.slice(startIndex, endIndex);
 
-  // เมื่อมีการเปลี่ยนค่า filter หรือจำนวนแถว ให้กลับไปหน้า 1 เสมอ
   useEffect(() => {
     setCurrentTablePage(1);
   }, [filterText, rowsPerPage]);
 
   return (
     <div className="flex">
-      {/* Sidebar (ไม่มีการเปลี่ยนแปลง) */}
+      {/* Sidebar */}
       <div className={`fixed inset-y-0 left-0 z-50 bg-white shadow-2xl transform transition-all duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0 lg:relative lg:flex lg:flex-col ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'
         } w-64`}>
-        {/* ... โค้ด Sidebar ... */}
         <div className={`flex items-center justify-between p-6 border-b border-gray-200 ${sidebarCollapsed ? 'lg:p-3' : ''}`}>
           {!sidebarCollapsed && (
             <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -111,7 +106,7 @@ const HomePage = ({
         </nav>
       </div>
 
-      {/* Overlay for mobile (ไม่มีการเปลี่ยนแปลง) */}
+      {/* Overlay for mobile */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
@@ -121,9 +116,8 @@ const HomePage = ({
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header (ไม่มีการเปลี่ยนแปลง) */}
+        {/* Header */}
         <header className="bg-white shadow-sm border-b border-gray-200">
-          {/* ... โค้ด Header ... */}
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center space-x-4">
               <button
@@ -145,9 +139,8 @@ const HomePage = ({
 
         <main className="flex-1 p-6 overflow-auto">
           <div className="space-y-6">
-            {/* Stats Cards (ไม่มีการเปลี่ยนแปลง) */}
+            {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* ... โค้ด Stats Cards ... */}
               <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 transform transition-all duration-300 hover:scale-105">
                 <div className="flex items-center justify-between">
                   <div>
@@ -177,7 +170,7 @@ const HomePage = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-3xl font-bold text-gray-800">
-                      {files.filter(f => f.status === 'Processing').length}
+                      {files.filter(f => f.similarity_status === 'pending').length}
                     </h3>
                     <p className="text-gray-600">Pending</p>
                   </div>
@@ -189,7 +182,7 @@ const HomePage = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-3xl font-bold text-gray-800">
-                      {files.filter(f => f.status === 'Processed').length}
+                      {files.filter(f => f.similarity_status === 'complete').length}
                     </h3>
                     <p className="text-gray-600">OCR Processed</p>
                   </div>
@@ -198,9 +191,8 @@ const HomePage = ({
               </div>
             </div>
 
-            {/* Action Buttons (ไม่มีการเปลี่ยนแปลง) */}
+            {/* --- ⭐️ จุดที่แก้ไข: เพิ่มโค้ดส่วนนี้กลับเข้ามา --- */}
             <div className="bg-white rounded-xl shadow-lg p-6">
-              {/* ... โค้ด Action Buttons ... */}
               <div className="flex flex-wrap gap-4">
                 <button className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105">
                   <span>📊</span>
@@ -216,12 +208,11 @@ const HomePage = ({
               </div>
             </div>
 
-            {/* Files Table (มีการอัปเดต) */}
+            {/* Files Table */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <h3 className="text-xl font-semibold text-gray-800">Recent Files</h3>
-                  {/* --- UI ใหม่: ช่องค้นหา --- */}
                   <input
                     type="text"
                     value={filterText}
@@ -234,7 +225,6 @@ const HomePage = ({
               <div className="overflow-x-auto">
                 <table className="min-w-full">
                   <thead className="bg-gray-50">
-                    {/* ... โค้ด thead ... */}
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">FILENAME</th>
@@ -245,7 +235,7 @@ const HomePage = ({
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {paginatedFiles.length === 0 ? ( // เปลี่ยนจาก files.length
+                    {paginatedFiles.length === 0 ? (
                       <tr>
                         <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
                           <div className="text-6xl mb-4">📂</div>
@@ -262,9 +252,8 @@ const HomePage = ({
                         </td>
                       </tr>
                     ) : (
-                      paginatedFiles.map((file) => ( // เปลี่ยนจาก files.map
+                      paginatedFiles.map((file) => (
                         <tr key={file.id} className="hover:bg-gray-50 transition-colors duration-200">
-                          {/* ... โค้ด tr และ td ... */}
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{file.id}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {file.name || file.original_name || file.filename || 'Unknown'}
@@ -276,13 +265,15 @@ const HomePage = ({
                             {file.uploadedAt || file.uploaded_at || '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${file.status === 'Processed'
-                              ? 'bg-green-100 text-green-800'
-                              : file.status === 'Processing'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-gray-100 text-gray-800'
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${file.similarity_status === 'complete'
+                                ? 'bg-green-100 text-green-800'
+                                : file.similarity_status === 'in process'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : file.similarity_status === 'pending'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-gray-100 text-gray-800'
                               }`}>
-                              {file.status || 'Unknown'}
+                              {file.similarity_status || 'Unknown'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -316,7 +307,7 @@ const HomePage = ({
                   </tbody>
                 </table>
               </div>
-              {/* --- UI ใหม่: ส่วนควบคุมการแบ่งหน้า --- */}
+              {/* Pagination Controls */}
               {totalPages > 1 && (
                 <div className="p-4 border-t border-gray-200 flex items-center justify-between">
                   <div className="flex items-center space-x-2">
@@ -360,9 +351,8 @@ const HomePage = ({
         </main>
       </div>
 
-      {/* Floating Action Buttons (ไม่มีการเปลี่ยนแปลง) */}
+      {/* Floating Action Buttons */}
       <div className="fixed bottom-6 right-6 flex flex-col space-y-4 z-40">
-        {/* ... โค้ด Floating Action Buttons ... */}
         <button
           onClick={() => setShowChatModal(true)}
           className="bg-purple-500 hover:bg-purple-600 text-white p-4 rounded-full shadow-2xl transform transition-all duration-300 hover:scale-110"
