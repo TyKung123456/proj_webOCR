@@ -1,4 +1,4 @@
-// src/App.jsx - Updated with Real File Upload Integration
+// src/App.jsx - Updated with Real File Upload Integration + Fixed ReportModal Props
 import React, { useState, useEffect } from 'react';
 import ApiService from './services/ApiService';
 import HomePage from './pages/HomePage';
@@ -97,8 +97,13 @@ const FileUploadApp = () => {
       console.log('📁 Loading files from API...');
       const response = await ApiService.getFiles();
       
-      console.log('✅ Files loaded:', response.data.length);
+      console.log('✅ Files loaded:', response.data?.length || 0);
       setFiles(response.data || []);
+      
+      // Log file data for debugging
+      if (response.data && response.data.length > 0) {
+        console.log('📄 Sample file data:', response.data[0]);
+      }
       
     } catch (err) {
       console.error('❌ Error loading files:', err);
@@ -290,6 +295,7 @@ const FileUploadApp = () => {
         />
       )}
       
+      {/* ✅ FIXED: ส่ง files prop ไปให้ ReportModal */}
       {showReportModal && (
         <ReportModal 
           onClose={() => setShowReportModal(false)}
@@ -297,6 +303,7 @@ const FileUploadApp = () => {
           setReportType={setReportType}
           reportDescription={reportDescription}
           setReportDescription={setReportDescription}
+          files={files} // ✅ เพิ่ม files prop
         />
       )}
     </div>

@@ -8,7 +8,7 @@ console.log('🔄 Initializing database connection with Thai support...');
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 5433,
-  database: process.env.DB_NAME || 'myprj_receipt',
+  database: process.env.DB_NAME || 'n8n',
   user: process.env.DB_USER || 'admin',
   password: process.env.DB_PASSWORD || 'P@ssw0rd',
   

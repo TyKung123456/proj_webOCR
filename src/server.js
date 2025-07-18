@@ -144,7 +144,7 @@ app.listen(PORT, () => {
   console.log(`🇹🇭 Thai Test: http://localhost:${PORT}/api/health/thai`);
   console.log(`📁 File Uploads: http://localhost:${PORT}/uploads`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`📊 Database: ${process.env.DB_NAME || 'myprj_receipt'}`);
+  console.log(`📊 Database: ${process.env.DB_NAME || 'n8n'}`);
   console.log(`🌏 Encoding: UTF-8 (Thai Support Enabled)`);
   console.log('================================');
 });

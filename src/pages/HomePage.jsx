@@ -176,7 +176,7 @@ const HomePage = ({
               <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500 transform transition-all duration-300 hover:scale-105">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-3xl font-bold text-gray-800">
+                    <h3 className="text-3xl font-bold text-gray-800">{files.filter(file => file.status === 'pending').length}
                       {files.filter(f => f.status === 'Processing').length}
                     </h3>
                     <p className="text-gray-600">Pending</p>
@@ -267,24 +267,30 @@ const HomePage = ({
                           {/* ... โค้ด tr และ td ... */}
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{file.id}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {file.name || file.original_name || file.filename || 'Unknown'}
+                            {file.name || file.original_name || file.filename || 'Pending'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {file.type || file.file_type || 'Unknown'}
+                            {file.type || file.file_type || 'Pending'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {file.uploadedAt || file.uploaded_at || '-'}
                           </td>
+                          {/* แก้ตรงนี้ */}
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${file.status === 'Processed'
-                              ? 'bg-green-100 text-green-800'
-                              : file.status === 'Processing'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-gray-100 text-gray-800'
-                              }`}>
-                              {file.status || 'Unknown'}
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-medium ${file.status === 'Processed'
+                                  ? 'bg-green-100 text-green-800'
+                                  : file.status === 'Processing'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : file.status === 'Pending' || !file.status
+                                      ? 'bg-red-100 text-red-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                }`}
+                            >
+                              {file.status || 'Pending'}
                             </span>
                           </td>
+
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             <div className="flex space-x-2">
                               <button
