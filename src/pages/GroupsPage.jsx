@@ -1,224 +1,162 @@
-// src/pages/GroupsPage.jsx - หน้าสำหรับแสดงกลุ่มเอกสารผิดปกติ (Anomaly Groups) ที่ตรวจจับโดยระบบ
 import React from 'react';
 
-const GroupsPage = ({ 
-  files, suspiciousGroups, setSelectedSuspiciousGroup,
+// --- Icon Imports ---
+import {
+  LayoutDashboard, Search, BarChart2, Menu, X, ChevronsLeft, ChevronsRight,
+  ShieldAlert, AlertTriangle, ShieldQuestion, FileText, ListChecks, CheckCircle,
+  MessageSquarePlus, UploadCloud
+} from 'lucide-react';
+
+
+const GroupsPage = ({
+  files = [], suspiciousGroups = [], setSelectedSuspiciousGroup,
   currentDate, currentTime, currentPage, setCurrentPage,
   sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed,
-  setShowUploadModal, setShowChatModal, isPDFFile
+  setShowUploadModal, setShowChatModal
 }) => {
+  const safeSuspiciousGroups = suspiciousGroups || [];
+  const safeFiles = files || [];
+
+  const getSeverityInfo = (level) => {
+    switch (level) {
+      case 'high':
+        return { Icon: ShieldAlert, color: 'text-red-500', text: 'High' };
+      case 'medium':
+        return { Icon: AlertTriangle, color: 'text-amber-500', text: 'Medium' };
+      default:
+        return { Icon: ShieldQuestion, color: 'text-yellow-500', text: 'Low' };
+    }
+  };
+
   return (
-    <div className="flex">
-      {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 bg-white shadow-2xl transform transition-all duration-300 ease-in-out ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      } lg:translate-x-0 lg:relative lg:flex lg:flex-col ${
-        sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'
-      } w-64`}>
-        <div className={`flex items-center justify-between p-6 border-b border-gray-200 ${sidebarCollapsed ? 'lg:p-3' : ''}`}>
-          {!sidebarCollapsed && (
-            <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Menu
-            </h2>
-          )}
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="hidden lg:block p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
-              title={sidebarCollapsed ? "Expand Menu" : "Collapse Menu"}
-            >
-              <span className="text-lg text-gray-500">{sidebarCollapsed ? '→' : '←'}</span>
-            </button>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
-            >
-              <span className="text-xl text-gray-500">✕</span>
-            </button>
-          </div>
+    <div className="flex w-full">
+      {/* --- Standardized Sidebar --- */}
+      <div className={`fixed inset-y-0 left-0 z-50 bg-white shadow-lg transform transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:translate-x-0 lg:flex lg:flex-col border-r border-slate-200 ${sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'}`}>
+        <div className={`flex items-center justify-between p-4 h-20 border-b border-slate-200 ${sidebarCollapsed && 'lg:justify-center'}`}>
+          {!sidebarCollapsed && <span className="text-xl font-bold text-indigo-600">Dashboard</span>}
+          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="hidden lg:block p-2 hover:bg-slate-100 rounded-lg">
+            {sidebarCollapsed ? <ChevronsRight size={20} /> : <ChevronsLeft size={20} />}
+          </button>
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-slate-100 rounded-lg"><X size={20} /></button>
         </div>
-        
-        <nav className={`p-6 flex-1 ${sidebarCollapsed ? 'lg:p-3' : ''}`}>
-          <ul className="space-y-3">
-            <li>
-              <button
-                onClick={() => { setCurrentPage('home'); setSidebarOpen(false); }}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'lg:justify-center' : 'space-x-3'} px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                  currentPage === 'home' ? 'bg-blue-100 text-blue-600 shadow-md' : 'hover:bg-gray-100 text-gray-700'
+        <nav className="flex-1 p-4 space-y-2">
+          {[
+            { name: 'Home', icon: LayoutDashboard, page: 'home' },
+            { name: 'Detection', icon: Search, page: 'groups' },
+            { name: 'Analytics', icon: BarChart2, page: 'dashboard' },
+          ].map(item => (
+            <button
+              key={item.name}
+              onClick={() => { setCurrentPage(item.page); setSidebarOpen(false); }}
+              title={sidebarCollapsed ? item.name : ''}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${sidebarCollapsed ? 'justify-center' : ''
+                } ${currentPage === item.page
+                  ? 'bg-indigo-50 text-indigo-600 font-semibold'
+                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
                 }`}
-                title={sidebarCollapsed ? "Home" : ""}
-              >
-                <span className="text-xl">📄</span>
-                {!sidebarCollapsed && <span className="font-medium">Home</span>}
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => { setCurrentPage('groups'); setSidebarOpen(false); }}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'lg:justify-center' : 'space-x-3'} px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                  currentPage === 'groups' ? 'bg-red-100 text-red-600 shadow-md' : 'hover:bg-gray-100 text-gray-700'
-                }`}
-                title={sidebarCollapsed ? "Anomaly Detection" : ""}
-              >
-                <span className="text-xl">🔍</span>
-                {!sidebarCollapsed && <span className="font-medium">Anomaly Detection</span>}
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => { setCurrentPage('dashboard'); setSidebarOpen(false); }}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'lg:justify-center' : 'space-x-3'} px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                  currentPage === 'dashboard' ? 'bg-blue-100 text-blue-600 shadow-md' : 'hover:bg-gray-100 text-gray-700'
-                }`}
-                title={sidebarCollapsed ? "Dashboard" : ""}
-              >
-                <span className="text-xl">📊</span>
-                {!sidebarCollapsed && <span className="font-medium">Dashboard</span>}
-              </button>
-            </li>
-          </ul>
+            >
+              <item.icon size={20} />
+              {!sidebarCollapsed && <span>{item.name}</span>}
+            </button>
+          ))}
         </nav>
       </div>
 
-      {/* Overlay for mobile */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
-      {/* Main Content */}
+      {/* --- Standardized Main Content --- */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white shadow-sm border-b border-gray-200">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
-              >
-                <span className="text-xl">☰</span>
-              </button>
-              <h1 className="text-2xl font-bold text-gray-900">Anomaly Detection</h1>
-            </div>
-            <div className="bg-gray-50 px-4 py-2 rounded-lg">
-              <div className="text-lg font-bold text-gray-800">{currentDate}</div>
-              <div className="text-sm text-gray-600">{currentTime}</div>
-            </div>
+        <header className="flex items-center justify-between px-8 h-20 bg-white/80 backdrop-blur-lg border-b border-slate-200 sticky top-0 z-30">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 -ml-2"><Menu size={24} /></button>
+            <h1 className="text-2xl font-bold text-slate-800">Anomaly Detection</h1>
+          </div>
+          <div className="text-right">
+            <div className="font-semibold text-slate-700">{currentDate}</div>
+            <div className="text-sm text-slate-500">{currentTime} น.</div>
           </div>
         </header>
 
-        <main className="flex-1 p-6 overflow-auto">
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-3xl font-bold text-red-600">
-                    Anomaly Detection
-                  </h1>
-                  <p className="text-gray-600 mt-2">System groups documents with anomalies or incorrect data</p>
-                </div>
-              </div>
-            </div>
+        <main className="flex-1 p-8 space-y-8 bg-slate-50/50">
+          <div>
+            <h2 className="text-3xl font-bold text-slate-800">Suspicious Groups</h2>
+            <p className="mt-1 text-slate-500">Groups of documents identified by the system as having potential anomalies.</p>
+          </div>
 
-            {suspiciousGroups.length === 0 ? (
-              <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-                <div className="text-6xl mb-4">✅</div>
-                <h3 className="text-2xl font-bold text-green-600 mb-2">No Anomalies Found</h3>
-                <p className="text-gray-600">All documents have passed verification successfully. No anomalies detected.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-6">
-                {suspiciousGroups.map((group) => (
+          {safeSuspiciousGroups.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-center py-24 bg-white rounded-2xl shadow-sm border border-slate-200/80">
+              <CheckCircle size={48} className="text-green-500" />
+              <h3 className="mt-4 text-2xl font-bold text-slate-800">No Anomalies Found</h3>
+              <p className="mt-1 text-slate-500">All documents have passed verification successfully.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {safeSuspiciousGroups.map((group) => {
+                const { Icon, color, text } = getSeverityInfo(group.suspicionLevel);
+                return (
                   <div
                     key={group.id}
-                    className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl ${
-                      group.suspicionLevel === 'high' ? 'border-red-500' :
-                      group.suspicionLevel === 'medium' ? 'border-yellow-500' : 'border-orange-500'
-                    }`}
+                    className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 flex flex-col gap-4 cursor-pointer transform transition-all hover:-translate-y-1 hover:shadow-lg"
                     onClick={() => setSelectedSuspiciousGroup(group)}
                   >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center space-x-3">
-                        <div className={`text-3xl ${
-                          group.suspicionLevel === 'high' ? 'text-red-500' :
-                          group.suspicionLevel === 'medium' ? 'text-yellow-500' : 'text-orange-500'
-                        }`}>
-                          {group.suspicionLevel === 'high' ? '🚨' : group.suspicionLevel === 'medium' ? '⚠️' : '🔍'}
-                        </div>
+                    {/* Card Header */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <Icon size={28} className={color} />
                         <div>
-                          <h3 className="text-xl font-semibold text-gray-800">{group.name}</h3>
-                          <p className={`text-sm font-medium ${
-                            group.suspicionLevel === 'high' ? 'text-red-600' :
-                            group.suspicionLevel === 'medium' ? 'text-yellow-600' : 'text-orange-600'
-                          }`}>
-                            Anomaly Level: {group.suspicionLevel === 'high' ? 'High' : group.suspicionLevel === 'medium' ? 'Medium' : 'Low'}
-                          </p>
+                          <h3 className="text-lg font-bold text-slate-800">{group.name}</h3>
+                          <p className={`text-sm font-medium ${color}`}>{text} Severity</p>
                         </div>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        group.suspicionLevel === 'high' ? 'bg-red-100 text-red-800' :
-                        group.suspicionLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800'
-                      }`}>
-                        {group.count} Files
-                      </span>
+                      <span className="bg-slate-100 text-slate-600 text-xs font-semibold px-3 py-1 rounded-full">{group.count} Files</span>
                     </div>
 
-                    <p className="text-gray-600 mb-4">{group.description}</p>
+                    {/* Description */}
+                    <p className="text-sm text-slate-500">{group.description}</p>
 
+                    {/* Reasons */}
                     <div className="space-y-2">
-                      <h4 className="font-medium text-gray-800">Detected Issues:</h4>
-                      <ul className="space-y-1">
+                      <h4 className="font-semibold text-slate-600 text-sm">Detected Issues:</h4>
+                      <ul className="space-y-1.5">
                         {group.reasons.map((reason, index) => (
-                          <li key={index} className="flex items-center space-x-2 text-sm text-gray-700">
-                            <span className="text-red-500">•</span>
+                          <li key={index} className="flex items-start gap-2 text-sm text-slate-700">
+                            <ListChecks size={16} className="text-indigo-500 mt-0.5 flex-shrink-0" />
                             <span>{reason}</span>
                           </li>
                         ))}
                       </ul>
                     </div>
 
-                    {/* Related Files - เพิ่มการแสดงจำนวนหน้า */}
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="flex items-center space-x-4 flex-wrap">
+                    {/* Related Files */}
+                    <div className="border-t border-slate-200 pt-4 mt-auto">
+                      <h4 className="font-semibold text-slate-600 text-sm mb-2">Related Files:</h4>
+                      <div className="flex items-center gap-2 flex-wrap">
                         {group.files.map(fileId => {
-                          const file = files.find(f => f.id === fileId);
-                          return (
-                            <div key={fileId} className="flex items-center space-x-2 bg-gray-50 rounded-lg p-2 mb-2">
-                              <span className="text-lg">📄</span>
-                              <span className="text-xs text-gray-700">{file?.name}</span>
+                          const file = safeFiles.find(f => f.id === fileId);
+                          return file ? (
+                            <div key={fileId} className="flex items-center gap-2 bg-slate-50 text-slate-700 rounded-md px-2 py-1 text-xs">
+                              <FileText size={14} />
+                              <span>{file.name || file.original_name}</span>
                             </div>
-                          );
+                          ) : null;
                         })}
                       </div>
                     </div>
-
-                    <div className="mt-4 flex justify-end">
-                      <span className="text-sm text-blue-600 font-medium">Click for details →</span>
-                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </main>
       </div>
 
-      {/* Floating Action Buttons */}
-      <div className="fixed bottom-6 right-6 flex flex-col space-y-4 z-40">
-        <button
-          onClick={() => setShowChatModal(true)}
-          className="bg-purple-500 hover:bg-purple-600 text-white p-4 rounded-full shadow-2xl transform transition-all duration-300 hover:scale-110"
-          title="Chat with AI"
-        >
-          <span className="text-2xl">💬</span>
+      {/* --- Standardized Floating Action Buttons --- */}
+      <div className="fixed bottom-8 right-8 flex flex-col gap-4 z-40">
+        <button onClick={() => setShowChatModal(true)} title="Chat with AI" className="bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-full shadow-lg transform transition-all hover:scale-110">
+          <MessageSquarePlus size={24} />
         </button>
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-full shadow-2xl transform transition-all duration-300 hover:scale-110"
-          title="Upload Files"
-        >
-          <span className="text-2xl">📤</span>
+        <button onClick={() => setShowUploadModal(true)} title="Upload Files" className="bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-full shadow-lg transform transition-all hover:scale-110">
+          <UploadCloud size={24} />
         </button>
       </div>
     </div>

@@ -1,119 +1,101 @@
-// src/controllers/fileController.js - With Thai Language Support
+// src/controllers/fileController.js - เพิ่ม backup ไฟล์ที่อัปโหลด + รองรับ company_name, pn_name
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 
-// Generate UUID without external library
+// Helper to generate UUID
 const generateUUID = () => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
 };
 
-// ✅ Helper function to safely handle Thai filenames
-const sanitizeThaiFilename = (filename) => {
-  // Log original filename for debugging
-  console.log('📄 Original filename:', filename);
-  console.log('📄 Filename length:', filename.length);
-  console.log('📄 Filename buffer:', Buffer.from(filename, 'utf8'));
-  
-  // Return as-is but ensure UTF-8 encoding
-  const sanitized = Buffer.from(filename, 'utf8').toString('utf8');
-  console.log('✅ Sanitized filename:', sanitized);
-  
-  return sanitized;
-};
-
-// ✅ Helper function to create safe storage filename while preserving original
+// Helper to create safe storage filename
 const createSafeStorageFilename = (originalFilename) => {
   const ext = path.extname(originalFilename);
-  const baseName = path.basename(originalFilename, ext);
-  
-  // Create UUID-based filename for storage (to avoid filesystem issues)
   const uuid = generateUUID();
-  const safeFilename = `${uuid}${ext}`;
+  return `${uuid}${ext}`;
+};
+
+// ✅ Helper to parse filename for company_name and pn_name
+const parseFileName = (fileName) => {
+  console.log(`🔍 Server-side parsing filename: "${fileName}"`);
   
-  console.log('🔄 Storage mapping:', { 
-    original: originalFilename, 
-    storage: safeFilename 
-  });
+  // Remove file extension
+  const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
   
-  return safeFilename;
+  // Find first underscore (from left to right)
+  const firstUnderscoreIndex = nameWithoutExt.indexOf('_');
+  
+  if (firstUnderscoreIndex === -1 || firstUnderscoreIndex === 0) {
+    // No underscore found or underscore at beginning
+    return {
+      company_name: nameWithoutExt,
+      pn_name: '',
+      parsing_note: 'No valid underscore found - using entire name as company name'
+    };
+  }
+  
+  // Split by first underscore (reading from left to right)
+  const company_name = nameWithoutExt.substring(0, firstUnderscoreIndex).trim();
+  const pn_name = nameWithoutExt.substring(firstUnderscoreIndex + 1).trim();
+  
+  console.log(`🏢 Parsed company: "${company_name}", P/N: "${pn_name}"`);
+  
+  return {
+    company_name: company_name || nameWithoutExt,
+    pn_name: pn_name || '',
+    parsing_note: `Parsed successfully: Company "${company_name}" + P/N "${pn_name}"`
+  };
 };
 
 const db = require('../config/database');
 
-// ✅ Configure multer with Thai language support
+// โฟลเดอร์ backup ไฟล์
+const backupDir = 'D:\\github\\n8n\\n8n\\backup';
+
+// สร้างโฟลเดอร์ backup ถ้ายังไม่มี
+if (!fs.existsSync(backupDir)) {
+  fs.mkdirSync(backupDir, { recursive: true });
+}
+
+// Configure multer with Thai language support
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // Create timestamp-based folder structure
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const uploadDir = path.join(__dirname, '../../uploads', timestamp);
-    
-    // Ensure upload directory exists
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
-    
-    // Store timestamp in request for later use
     if (!req.folderTimestamp) {
       req.folderTimestamp = timestamp;
     }
-    
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     try {
-      // ✅ Handle Thai characters properly
-      console.log('🌏 Processing file with original name:', file.originalname);
-      
-      // Ensure originalname is properly encoded
       const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-      console.log('🔤 Decoded filename:', originalName);
-      
-      // Create safe storage filename
       const safeStorageFilename = createSafeStorageFilename(originalName);
-      
-      // Store original filename in request for database
       if (!req.originalFileNames) {
         req.originalFileNames = {};
       }
       req.originalFileNames[safeStorageFilename] = originalName;
-      
-      console.log('✅ Using storage filename:', safeStorageFilename);
       cb(null, safeStorageFilename);
-      
     } catch (error) {
-      console.error('❌ Error processing filename:', error);
-      // Fallback to UUID filename
       const fallbackName = `${generateUUID()}${path.extname(file.originalname)}`;
-      console.log('🔄 Using fallback filename:', fallbackName);
       cb(null, fallbackName);
     }
   }
 });
 
 const fileFilter = (req, file, cb) => {
-  try {
-    // ✅ Handle Thai characters in file type detection
-    console.log('🔍 File filter - mimetype:', file.mimetype);
-    console.log('🔍 File filter - originalname:', file.originalname);
-    
-    // Allow only specific file types
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-    
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      const error = new Error(`Invalid file type. Only PDF, JPG, PNG files are allowed. Got: ${file.mimetype}`);
-      console.error('❌ File type rejected:', error.message);
-      cb(error, false);
-    }
-  } catch (error) {
-    console.error('❌ Error in file filter:', error);
-    cb(error, false);
+  const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error(`Invalid file type. Only PDF, JPG, PNG files are allowed. Got: ${file.mimetype}`), false);
   }
 };
 
@@ -121,252 +103,216 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
-    files: 200 // Maximum 200 files per upload
+    fileSize: 50 * 1024 * 1024,
+    files: 200
   }
 });
 
-// ✅ Upload multiple files endpoint with Thai support
+// ✅ Enhanced Upload multiple files endpoint with company_name and pn_name support
 const uploadFiles = async (req, res) => {
   try {
-    console.log('📤 Upload request received');
-    console.log('📦 Files count:', req.files?.length || 0);
-    console.log('🌏 Request body:', req.body);
-
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No files uploaded'
-      });
+      return res.status(400).json({ success: false, message: 'No files uploaded' });
     }
 
-    // ✅ Handle Thai characters in work detail
     const workDetail = req.body.workDetail || '';
     const owner = req.body.owner || req.user?.username || 'system';
-    const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+    const clientIp = req.ip || 'unknown';
     const folderTimestamp = req.folderTimestamp;
+    const hasParsedData = req.body.hasParsedData === 'true';
     const uploadedFiles = [];
 
-    console.log('📝 Work detail:', workDetail);
-    console.log('👤 Owner:', owner);
+    console.log(`📤 Processing ${req.files.length} files with parsed data support...`);
+    if (hasParsedData) {
+      console.log('✅ Request contains parsed company/PN data from frontend');
+    }
 
-    // Process each uploaded file
-    for (const file of req.files) {
+    for (let i = 0; i < req.files.length; i++) {
+      const file = req.files[i];
+      
       try {
-        console.log('📄 Processing file:', file.filename);
-        
-        // Get original filename (with Thai support)
-        let originalFilename;
-        if (req.originalFileNames && req.originalFileNames[file.filename]) {
-          originalFilename = req.originalFileNames[file.filename];
-        } else {
-          // Fallback: try to decode from originalname
-          try {
-            originalFilename = Buffer.from(file.originalname, 'latin1').toString('utf8');
-          } catch (decodeError) {
-            console.warn('⚠️ Filename decode failed, using as-is:', file.originalname);
-            originalFilename = file.originalname;
-          }
-        }
-        
-        console.log('✅ Final original filename:', originalFilename);
-        
-        // Calculate full file path
+        let originalFilename = req.originalFileNames?.[file.filename] || Buffer.from(file.originalname, 'latin1').toString('utf8');
         const fullFilePath = file.path;
-        const relativePath = path.relative(path.join(__dirname, '../..'), fullFilePath);
+
+        // ✅ Get company_name and pn_name from frontend or parse from filename
+        let company_name, pn_name, parsing_note;
         
-        // ✅ Insert into uploaded_files table with UTF-8 support
+        if (hasParsedData && req.body[`company_name_${i}`] !== undefined) {
+          // Use data from frontend
+          company_name = req.body[`company_name_${i}`] || '';
+          pn_name = req.body[`pn_name_${i}`] || '';
+          parsing_note = 'Parsed by frontend';
+          console.log(`🎯 Using frontend parsed data for file ${i}: Company="${company_name}", P/N="${pn_name}"`);
+        } else {
+          // Parse filename on server side as fallback
+          const parsed = parseFileName(originalFilename);
+          company_name = parsed.company_name;
+          pn_name = parsed.pn_name;
+          parsing_note = parsed.parsing_note;
+          console.log(`🔄 Server-side parsing for file ${i}: Company="${company_name}", P/N="${pn_name}"`);
+        }
+
+        // บันทึกข้อมูลไฟล์ใน DB พร้อมสถานะ similarity_status = 'No' และข้อมูลที่แยกได้
         const result = await db.query(`
           INSERT INTO uploaded_files (
-            filename, 
-            owner, 
-            work_detail,
-            uploaded_at,
-            client_ip,
-            fullfile_path,
-            folder_timestamp,
-            similarity_status
-          ) VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7)
+            filename, owner, work_detail, uploaded_at, client_ip, fullfile_path, 
+            folder_timestamp, similarity_status, company_name, pn_name
+          ) 
+          VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, $8, $9) 
           RETURNING *
-        `, [
-          originalFilename,  // ✅ Use original Thai filename
-          owner,
-          workDetail,
-          clientIp,
-          fullFilePath,
-          folderTimestamp,
-          'No'
-        ]);
+        `, [originalFilename, owner, workDetail, clientIp, fullFilePath, folderTimestamp, 'No', company_name, pn_name]);
 
         const savedFile = result.rows[0];
-        console.log('✅ File saved to database with ID:', savedFile.id);
-        console.log('📝 Saved filename:', savedFile.filename);
 
-        // ✅ For PDFs, create entries in uploaded_files_page table
+        // ถ้าเป็น PDF บันทึกหน้าที่ 1 ลงตาราง uploaded_files_page
         if (file.mimetype === 'application/pdf') {
           await db.query(`
             INSERT INTO uploaded_files_page (
-              file_id,
-              filename,
-              owner,
-              work_detail,
-              uploaded_at,
-              client_ip,
-              fullfile_path,
-              folder_timestamp,
-              page_number,
-              similarity_status
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-          `, [
-            savedFile.id,
-            originalFilename,  // ✅ Use original Thai filename
-            owner,
-            workDetail,
-            savedFile.uploaded_at,
-            clientIp,
-            fullFilePath,
-            folderTimestamp,
-            1,
-            'No'
-          ]);
+              file_id, filename, owner, work_detail, uploaded_at, client_ip, 
+              fullfile_path, folder_timestamp, page_number, similarity_status
+            ) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          `, [savedFile.id, originalFilename, owner, workDetail, savedFile.uploaded_at, clientIp, fullFilePath, folderTimestamp, 1, 'No']);
         }
 
-        // Prepare response data
+        // ** Backup ไฟล์ไปยัง backupDir **
+        const backupFilePath = path.join(backupDir, path.basename(file.path));
+        try {
+          fs.copyFileSync(fullFilePath, backupFilePath);
+          console.log(`✅ Backup file created: ${backupFilePath}`);
+        } catch (backupErr) {
+          console.error(`❌ Backup failed for file ${originalFilename}:`, backupErr.message);
+        }
+
         uploadedFiles.push({
           id: savedFile.id,
           filename: savedFile.filename,
           original_name: originalFilename,
-          storage_filename: file.filename,  // Internal storage filename
-          file_path: relativePath,
+          file_path: file.path,
           file_size: file.size,
           file_type: path.extname(originalFilename).slice(1).toUpperCase(),
           mime_type: file.mimetype,
-          work_detail: savedFile.work_detail,
-          owner: savedFile.owner,
-          uploaded_at: savedFile.uploaded_at,
-          client_ip: savedFile.client_ip,
-          fullfile_path: savedFile.fullfile_path,
-          folder_timestamp: savedFile.folder_timestamp,
-          similarity_status: savedFile.similarity_status,
-          // Add URLs for frontend access
           url: `/api/files/${savedFile.id}/view`,
-          download_url: `/api/files/${savedFile.id}/download`
+          company_name: savedFile.company_name,
+          pn_name: savedFile.pn_name,
+          parsing_note: parsing_note
         });
 
-      } catch (fileError) {
-        console.error('❌ Error processing file:', file.originalname, fileError);
-        // Delete the uploaded file if database insert fails
-        if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
-        }
+        console.log(`✅ File ${i + 1}/${req.files.length} processed: ${originalFilename}`);
         
-        // Add error info to response
-        uploadedFiles.push({
-          error: true,
-          filename: file.originalname,
-          message: fileError.message
-        });
+      } catch (fileError) {
+        console.error(`❌ Error processing file ${i}:`, file.originalname, fileError);
+        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+        uploadedFiles.push({ error: true, filename: file.originalname, message: fileError.message });
       }
-    }
-
-    if (uploadedFiles.filter(f => !f.error).length === 0) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to process any files',
-        errors: uploadedFiles.filter(f => f.error)
-      });
     }
 
     const successCount = uploadedFiles.filter(f => !f.error).length;
     const errorCount = uploadedFiles.filter(f => f.error).length;
 
-    console.log(`✅ Upload completed: ${successCount} success, ${errorCount} errors`);
+    console.log(`📊 Upload summary: ${successCount} success, ${errorCount} errors`);
 
     res.status(201).json({
       success: true,
       message: `Successfully uploaded ${successCount} file(s)${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
       data: uploadedFiles.filter(f => !f.error),
       errors: uploadedFiles.filter(f => f.error),
-      count: successCount
+      parsing_enabled: true
     });
 
   } catch (error) {
     console.error('❌ Upload error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Upload failed: ' + error.message
-    });
+    res.status(500).json({ success: false, message: 'Upload failed: ' + error.message });
   }
 };
 
-// ✅ Get all files - with Thai filename support
+// ✅ Enhanced Get all files with company/pn search support
 const getAllFiles = async (req, res) => {
   try {
-    const { page = 1, limit = 50, similarity_status, owner } = req.query;
+    const { 
+      page = 1, 
+      limit = 50, 
+      company_name, 
+      pn_name, 
+      search 
+    } = req.query;
+    
     const offset = (page - 1) * limit;
+    
+    // Build dynamic WHERE clause
+    let whereConditions = [];
+    let queryParams = [];
+    let paramIndex = 1;
 
-    let whereClause = '';
-    const queryParams = [];
-
-    if (similarity_status) {
-      whereClause += ' WHERE similarity_status = $' + (queryParams.length + 1);
-      queryParams.push(similarity_status);
+    if (company_name) {
+      whereConditions.push(`uf.company_name ILIKE $${paramIndex}`);
+      queryParams.push(`%${company_name}%`);
+      paramIndex++;
     }
 
-    if (owner) {
-      whereClause += (whereClause ? ' AND' : ' WHERE') + ' owner = $' + (queryParams.length + 1);
-      queryParams.push(owner);
+    if (pn_name) {
+      whereConditions.push(`uf.pn_name ILIKE $${paramIndex}`);
+      queryParams.push(`%${pn_name}%`);
+      paramIndex++;
     }
 
-    // ✅ Query with proper UTF-8 handling
+    if (search) {
+      whereConditions.push(`(
+        uf.filename ILIKE $${paramIndex} OR 
+        uf.company_name ILIKE $${paramIndex} OR 
+        uf.pn_name ILIKE $${paramIndex} OR 
+        uf.work_detail ILIKE $${paramIndex}
+      )`);
+      queryParams.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Add pagination parameters
+    queryParams.push(limit, offset);
+    const limitClause = `LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+
     const query = `
       SELECT 
-        id,
-        filename,
-        owner,
-        work_detail,
-        uploaded_at,
-        client_ip,
-        ocr_text,
-        receipt_date,
-        total_amount,
-        similarity_status,
-        similar_to_file_id,
-        similarity_score,
-        fullfile_path,
-        folder_timestamp
-      FROM uploaded_files
+        uf.id, 
+        uf.filename, 
+        uf.owner, 
+        uf.work_detail, 
+        uf.uploaded_at, 
+        uf.ocr_text, 
+        uf.receipt_date, 
+        uf.total_amount, 
+        uf.similarity_status,
+        uf.company_name,
+        uf.pn_name,
+        ufp.extract_entity,
+        ufp.extract_taxid
+      FROM 
+        uploaded_files AS uf
+      LEFT JOIN 
+        uploaded_files_page AS ufp ON uf.id = ufp.file_id AND ufp.page_number = 1
       ${whereClause}
-      ORDER BY uploaded_at DESC 
-      LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+      ORDER BY 
+        uf.uploaded_at DESC 
+      ${limitClause}
     `;
 
-    queryParams.push(limit, offset);
+    console.log('🔍 Search query:', { company_name, pn_name, search });
 
     const result = await db.query(query, queryParams);
-    
-    // Add computed fields and URLs to each file
-    const files = result.rows.map(file => {
-      // ✅ Ensure Thai characters are properly handled
-      console.log('📄 Retrieved filename:', file.filename);
-      
-      return {
-        ...file,
-        original_name: file.filename, // This now contains Thai characters
-        file_size: 0, // Would need to calculate from file system if needed
-        file_type: path.extname(file.filename).slice(1).toUpperCase(),
-        mime_type: getMimeTypeFromExtension(file.filename),
-        url: `/api/files/${file.id}/view`,
-        download_url: `/api/files/${file.id}/download`,
-        has_ocr: !!file.ocr_text,
-        has_receipt_data: !!(file.receipt_date || file.total_amount),
-        is_suspicious: file.similarity_status === 'Yes'
-      };
-    });
 
-    // Get total count
-    const countQuery = `SELECT COUNT(*) FROM uploaded_files ${whereClause}`;
-    const countResult = await db.query(countQuery, whereClause ? queryParams.slice(0, -2) : []);
+    const files = result.rows.map(file => ({
+      ...file,
+      original_name: file.filename,
+      file_type: path.extname(file.filename).slice(1).toUpperCase(),
+      mime_type: getMimeTypeFromExtension(file.filename)
+    }));
+
+    // Count total for pagination (use same WHERE clause)
+    const countQuery = `SELECT COUNT(*) FROM uploaded_files AS uf ${whereClause}`;
+    const countParams = queryParams.slice(0, queryParams.length - 2); // Remove limit and offset
+    const countResult = await db.query(countQuery, countParams);
     const totalCount = parseInt(countResult.rows[0].count);
 
     res.json({
@@ -377,173 +323,59 @@ const getAllFiles = async (req, res) => {
         limit: parseInt(limit),
         total: totalCount,
         pages: Math.ceil(totalCount / limit)
+      },
+      search_criteria: {
+        company_name,
+        pn_name,
+        search
       }
     });
-
   } catch (error) {
     console.error('❌ Error fetching files:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch files: ' + error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch files: ' + error.message });
   }
 };
 
-// ✅ Download file with Thai filename support
-const downloadFile = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const result = await db.query('SELECT * FROM uploaded_files WHERE id = $1', [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'File not found'
-      });
-    }
-
-    const file = result.rows[0];
-    const filePath = file.fullfile_path;
-
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        success: false,
-        message: 'File not found on disk'
-      });
-    }
-
-    // Get file stats
-    const stats = fs.statSync(filePath);
-    const mimeType = getMimeTypeFromExtension(file.filename);
-
-    // ✅ Set download headers with proper Thai filename encoding
-    res.setHeader('Content-Type', mimeType);
-    
-    // Encode Thai filename properly for download
-    const encodedFilename = encodeURIComponent(file.filename);
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
-    res.setHeader('Content-Length', stats.size);
-
-    console.log('📥 Downloading file:', file.filename);
-    console.log('🔤 Encoded filename:', encodedFilename);
-
-    // Stream the file
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
-
-  } catch (error) {
-    console.error('❌ Error downloading file:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to download file: ' + error.message
-    });
-  }
-};
-
-// ✅ View file with Thai filename support
-const viewFile = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const result = await db.query('SELECT * FROM uploaded_files WHERE id = $1', [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'File not found'
-      });
-    }
-
-    const file = result.rows[0];
-    const filePath = file.fullfile_path;
-
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        success: false,
-        message: 'File not found on disk'
-      });
-    }
-
-    // Get mime type
-    const mimeType = getMimeTypeFromExtension(file.filename);
-
-    // ✅ Set appropriate headers with Thai filename support
-    res.setHeader('Content-Type', mimeType);
-    
-    // For inline viewing, encode filename properly
-    const encodedFilename = encodeURIComponent(file.filename);
-    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodedFilename}`);
-    
-    // ✅ FIXED: For PDFs, allow iframe viewing from any origin
-    if (mimeType === 'application/pdf') {
-      res.setHeader('X-Frame-Options', 'ALLOWALL');
-      res.setHeader('Content-Security-Policy', "frame-ancestors *");
-    }
-
-    console.log('👁️ Viewing file:', file.filename);
-
-    // Stream the file
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
-
-  } catch (error) {
-    console.error('❌ Error serving file:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to serve file: ' + error.message
-    });
-  }
-};
-
-// Keep other functions the same...
+// ✅ Enhanced Get file by ID with company/pn data
 const getFileById = async (req, res) => {
   try {
     const { id } = req.params;
 
     const fileResult = await db.query(`
-      SELECT 
-        id,
-        filename,
-        owner,
-        work_detail,
-        uploaded_at,
-        client_ip,
-        ocr_text,
-        receipt_date,
-        total_amount,
-        similarity_status,
-        similar_to_file_id,
-        similarity_score,
-        fullfile_path,
-        folder_timestamp
+      SELECT id, filename, owner, work_detail, uploaded_at, client_ip, ocr_text,
+             receipt_date, total_amount, similarity_status, similar_to_file_id,
+             similarity_score, fullfile_path, folder_timestamp,
+             company_name, pn_name
       FROM uploaded_files 
       WHERE id = $1
     `, [id]);
 
     if (fileResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'File not found'
-      });
+      return res.status(404).json({ success: false, message: 'File not found' });
     }
 
     const file = fileResult.rows[0];
 
     const pageResult = await db.query(`
-      SELECT 
-        page_number,
-        ocr_text,
-        time_process,
-        extract_taxid,
-        extract_receipt,
-        extract_entity,
-        extract_number_of_receipt
+      SELECT page_number, ocr_text, time_process, extract_taxid, extract_receipt,
+             extract_entity, extract_number_of_receipt
       FROM uploaded_files_page 
-      WHERE file_id = $1
-      ORDER BY page_number
+      WHERE file_id = $1 ORDER BY page_number
     `, [id]);
+
+    const pages = pageResult.rows || [];
+
+    if (!file.ocr_text && pages.length > 0) {
+      const fullOcrText = pages
+        .map(p => p.ocr_text)
+        .filter(Boolean)
+        .join('\n\n--- Page Break ---\n\n');
+
+      if (fullOcrText) {
+        file.ocr_text = fullOcrText;
+        console.log(`✅ Constructed aggregated OCR text for file ID: ${id}`);
+      }
+    }
 
     const fileExists = fs.existsSync(file.fullfile_path);
 
@@ -559,267 +391,186 @@ const getFileById = async (req, res) => {
         download_url: `/api/files/${file.id}/download`,
         file_exists: fileExists,
         has_ocr: !!file.ocr_text,
-        has_receipt_data: !!(file.receipt_date || file.total_amount),
-        is_suspicious: file.similarity_status === 'Yes',
-        pages: pageResult.rows || []
+        pages: pages
       }
     });
 
   } catch (error) {
     console.error('❌ Error fetching file:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch file: ' + error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch file: ' + error.message });
   }
 };
 
-const updateFileStatus = async (req, res) => {
+// View file
+const viewFile = async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      ocr_text, 
-      receipt_date, 
-      total_amount, 
-      similarity_status, 
-      similar_to_file_id, 
-      similarity_score 
-    } = req.body;
-
-    const updateFields = [];
-    const values = [];
-    let paramCount = 1;
-
-    if (ocr_text) {
-      updateFields.push(`ocr_text = $${paramCount}`);
-      values.push(ocr_text);
-      paramCount++;
-    }
-
-    if (receipt_date) {
-      updateFields.push(`receipt_date = $${paramCount}`);
-      values.push(receipt_date);
-      paramCount++;
-    }
-
-    if (total_amount) {
-      updateFields.push(`total_amount = $${paramCount}`);
-      values.push(total_amount);
-      paramCount++;
-    }
-
-    if (similarity_status) {
-      updateFields.push(`similarity_status = $${paramCount}`);
-      values.push(similarity_status);
-      paramCount++;
-    }
-
-    if (similar_to_file_id) {
-      updateFields.push(`similar_to_file_id = $${paramCount}`);
-      values.push(similar_to_file_id);
-      paramCount++;
-    }
-
-    if (similarity_score) {
-      updateFields.push(`similarity_score = $${paramCount}`);
-      values.push(similarity_score);
-      paramCount++;
-    }
-
-    if (updateFields.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No fields to update'
-      });
-    }
-
-    values.push(id);
-
-    const query = `
-      UPDATE uploaded_files 
-      SET ${updateFields.join(', ')}
-      WHERE id = $${paramCount}
-      RETURNING *
-    `;
-
-    const result = await db.query(query, values);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'File not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      message: 'File updated successfully',
-      data: result.rows[0]
-    });
-
-  } catch (error) {
-    console.error('❌ Error updating file:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update file: ' + error.message
-    });
-  }
-};
-
-const deleteFile = async (req, res) => {
-  try {
-    const { id } = req.params;
-
     const result = await db.query('SELECT * FROM uploaded_files WHERE id = $1', [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'File not found'
-      });
-    }
+    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'File not found' });
 
     const file = result.rows[0];
     const filePath = file.fullfile_path;
+    if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, message: 'File not found on disk' });
 
+    const mimeType = getMimeTypeFromExtension(file.filename);
+    res.setHeader('Content-Type', mimeType);
+    const encodedFilename = encodeURIComponent(file.filename);
+    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodedFilename}`);
+    if (mimeType === 'application/pdf') {
+      res.setHeader('Content-Security-Policy', "frame-ancestors *");
+    }
+    fs.createReadStream(filePath).pipe(res);
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to serve file: ' + error.message });
+  }
+};
+
+// Download file
+const downloadFile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query('SELECT * FROM uploaded_files WHERE id = $1', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'File not found' });
+
+    const file = result.rows[0];
+    const filePath = file.fullfile_path;
+    if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, message: 'File not found on disk' });
+
+    const mimeType = getMimeTypeFromExtension(file.filename);
+    res.setHeader('Content-Type', mimeType);
+    const encodedFilename = encodeURIComponent(file.filename);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
+    fs.createReadStream(filePath).pipe(res);
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to download file: ' + error.message });
+  }
+};
+
+// Delete file
+const deleteFile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query('SELECT * FROM uploaded_files WHERE id = $1', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'File not found' });
+
+    const file = result.rows[0];
     await db.query('DELETE FROM uploaded_files_page WHERE file_id = $1', [id]);
     await db.query('DELETE FROM uploaded_files WHERE id = $1', [id]);
 
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      console.log('🗑️ Physical file deleted:', filePath);
-    }
-
-    res.json({
-      success: true,
-      message: 'File deleted successfully'
-    });
-
+    if (fs.existsSync(file.fullfile_path)) fs.unlinkSync(file.fullfile_path);
+    res.json({ success: true, message: 'File deleted successfully' });
   } catch (error) {
-    console.error('❌ Error deleting file:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete file: ' + error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to delete file: ' + error.message });
   }
 };
 
-const getOCRResult = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const result = await db.query(`
-      SELECT id, filename, ocr_text, receipt_date, total_amount, uploaded_at
-      FROM uploaded_files 
-      WHERE id = $1
-    `, [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'File not found'
-      });
-    }
-
-    const file = result.rows[0];
-
-    if (!file.ocr_text) {
-      return res.status(404).json({
-        success: false,
-        message: 'OCR result not available for this file'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: {
-        id: file.id,
-        filename: file.filename,
-        ocr_text: file.ocr_text,
-        receipt_date: file.receipt_date,
-        total_amount: file.total_amount,
-        uploaded_at: file.uploaded_at
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching OCR result:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch OCR result: ' + error.message
-    });
-  }
-};
-
-const getFileStatistics = async (req, res) => {
-  try {
-    const stats = await db.query(`
-      SELECT 
-        COUNT(*) as total_files,
-        COUNT(CASE WHEN similarity_status = 'Yes' THEN 1 END) as suspicious_files,
-        COUNT(CASE WHEN similarity_status = 'No' THEN 1 END) as normal_files,
-        COUNT(CASE WHEN DATE(uploaded_at) = CURRENT_DATE THEN 1 END) as today_files,
-        COUNT(CASE WHEN ocr_text IS NOT NULL THEN 1 END) as files_with_ocr,
-        COUNT(CASE WHEN receipt_date IS NOT NULL OR total_amount IS NOT NULL THEN 1 END) as files_with_receipt_data,
-        COUNT(DISTINCT owner) as unique_uploaders,
-        AVG(similarity_score) as avg_similarity_score
-      FROM uploaded_files
-    `);
-
-    const pageStats = await db.query(`
-      SELECT 
-        COUNT(*) as total_pages,
-        COUNT(CASE WHEN ocr_text IS NOT NULL THEN 1 END) as pages_with_ocr
-      FROM uploaded_files_page
-    `);
-
-    const statistics = stats.rows[0];
-    const pageStatistics = pageStats.rows[0];
-
-    res.json({
-      success: true,
-      data: {
-        total_files: parseInt(statistics.total_files),
-        suspicious_files: parseInt(statistics.suspicious_files),
-        normal_files: parseInt(statistics.normal_files),
-        today_files: parseInt(statistics.today_files),
-        files_with_ocr: parseInt(statistics.files_with_ocr),
-        files_with_receipt_data: parseInt(statistics.files_with_receipt_data),
-        unique_uploaders: parseInt(statistics.unique_uploaders),
-        avg_similarity_score: parseFloat(statistics.avg_similarity_score || 0),
-        total_pages: parseInt(pageStatistics.total_pages),
-        pages_with_ocr: parseInt(pageStatistics.pages_with_ocr),
-        suspicious_rate: statistics.total_files > 0 
-          ? Math.round((statistics.suspicious_files / statistics.total_files) * 100) 
-          : 0,
-        ocr_coverage: statistics.total_files > 0 
-          ? Math.round((statistics.files_with_ocr / statistics.total_files) * 100) 
-          : 0,
-        receipt_processing_rate: statistics.total_files > 0 
-          ? Math.round((statistics.files_with_receipt_data / statistics.total_files) * 100) 
-          : 0
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching statistics:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch statistics: ' + error.message
-    });
-  }
-};
-
+// Helper function
 const getMimeTypeFromExtension = (filename) => {
   const ext = path.extname(filename).toLowerCase();
   const mimeTypes = {
     '.pdf': 'application/pdf',
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.gif': 'image/gif'
+    '.png': 'image/png'
   };
   return mimeTypes[ext] || 'application/octet-stream';
+};
+
+// ✅ Enhanced File statistics endpoint with company/pn insights
+const getFileStatistics = async (req, res) => {
+  try {
+    const totalFilesResult = await db.query('SELECT COUNT(*) FROM uploaded_files');
+    const today = new Date().toISOString().slice(0, 10);
+    const todaysFilesResult = await db.query('SELECT COUNT(*) FROM uploaded_files WHERE DATE(uploaded_at) = $1', [today]);
+    const pendingResult = await db.query("SELECT COUNT(*) FROM uploaded_files WHERE status = 'Processing'");
+    const processedResult = await db.query("SELECT COUNT(*) FROM uploaded_files WHERE status = 'Processed'");
+    
+    // Company statistics
+    const companiesResult = await db.query(`
+      SELECT 
+        company_name, 
+        COUNT(*) as file_count,
+        COUNT(DISTINCT pn_name) as unique_pn_count
+      FROM uploaded_files 
+      WHERE company_name IS NOT NULL AND company_name != ''
+      GROUP BY company_name 
+      ORDER BY file_count DESC 
+      LIMIT 10
+    `);
+
+    // P/N statistics
+    const pnResult = await db.query(`
+      SELECT 
+        pn_name, 
+        company_name,
+        COUNT(*) as file_count
+      FROM uploaded_files 
+      WHERE pn_name IS NOT NULL AND pn_name != ''
+      GROUP BY pn_name, company_name 
+      ORDER BY file_count DESC 
+      LIMIT 10
+    `);
+
+    // Files without parsing data
+    const unparsedResult = await db.query(`
+      SELECT COUNT(*) FROM uploaded_files 
+      WHERE company_name IS NULL OR company_name = '' OR pn_name IS NULL OR pn_name = ''
+    `);
+
+    res.json({
+      success: true,
+      data: {
+        totalFiles: parseInt(totalFilesResult.rows[0].count),
+        todaysFiles: parseInt(todaysFilesResult.rows[0].count),
+        pendingFiles: parseInt(pendingResult.rows[0].count),
+        processedFiles: parseInt(processedResult.rows[0].count),
+        unparsedFiles: parseInt(unparsedResult.rows[0].count),
+        topCompanies: companiesResult.rows,
+        topPN: pnResult.rows,
+        parsing_stats: {
+          total_companies: companiesResult.rows.length,
+          total_unique_pn: pnResult.rows.length
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error getting statistics:', error);
+    res.status(500).json({ success: false, message: 'Failed to get statistics: ' + error.message });
+  }
+};
+
+// ✅ New endpoint: Get company statistics
+const getCompanyStatistics = async (req, res) => {
+  try {
+    const { limit = 20 } = req.query;
+
+    const companiesResult = await db.query(`
+      SELECT 
+        company_name,
+        COUNT(*) as total_files,
+        COUNT(DISTINCT pn_name) as unique_pn_count,
+        MIN(uploaded_at) as first_upload,
+        MAX(uploaded_at) as last_upload,
+        ARRAY_AGG(DISTINCT pn_name ORDER BY pn_name) FILTER (WHERE pn_name IS NOT NULL AND pn_name != '') as pn_list
+      FROM uploaded_files 
+      WHERE company_name IS NOT NULL AND company_name != ''
+      GROUP BY company_name 
+      ORDER BY total_files DESC 
+      LIMIT $1
+    `, [limit]);
+
+    res.json({
+      success: true,
+      data: {
+        companies: companiesResult.rows,
+        total_companies: companiesResult.rows.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting company statistics:', error);
+    res.status(500).json({ success: false, message: 'Failed to get company statistics: ' + error.message });
+  }
 };
 
 module.exports = {
@@ -827,10 +578,9 @@ module.exports = {
   uploadFiles,
   getAllFiles,
   getFileById,
-  updateFileStatus,
   viewFile,
   downloadFile,
   deleteFile,
-  getOCRResult,
-  getFileStatistics
+  getFileStatistics,
+  getCompanyStatistics
 };
