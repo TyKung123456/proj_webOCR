@@ -410,12 +410,7 @@ const HomePage = ({
                         </td>
                         <td className="px-6 py-4">
                           <StatusPill status={file.processing_status} />
-                          {/* Debug info - ลบออกหลังจากแก้ไขแล้ว */}
-                          {process.env.NODE_ENV === 'development' && (
-                            <div className="text-xs text-gray-400 mt-1">
-                              Debug: {JSON.stringify(file.processing_status)}
-                            </div>
-                          )}
+
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex justify-end items-center gap-2">
