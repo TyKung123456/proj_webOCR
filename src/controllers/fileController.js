@@ -1,4 +1,4 @@
-// src/controllers/fileController.js - FIXED OCR Text Logic
+// src/controllers/fileController.js - เพิ่ม backup ไฟล์ที่อัปโหลด
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
@@ -20,6 +20,14 @@ const createSafeStorageFilename = (originalFilename) => {
 };
 
 const db = require('../config/database');
+
+// โฟลเดอร์ backup ไฟล์
+const backupDir = '/Users/amooks/Desktop/intern/n8n/backup';
+
+// สร้างโฟลเดอร์ backup ถ้ายังไม่มี
+if (!fs.existsSync(backupDir)) {
+  fs.mkdirSync(backupDir, { recursive: true });
+}
 
 // Configure multer with Thai language support
 const storage = multer.diskStorage({
@@ -86,6 +94,7 @@ const uploadFiles = async (req, res) => {
         let originalFilename = req.originalFileNames?.[file.filename] || Buffer.from(file.originalname, 'latin1').toString('utf8');
         const fullFilePath = file.path;
 
+        // บันทึกข้อมูลไฟล์ใน DB พร้อมสถานะ similarity_status = 'No'
         const result = await db.query(`
           INSERT INTO uploaded_files (filename, owner, work_detail, uploaded_at, client_ip, fullfile_path, folder_timestamp, similarity_status) 
           VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7) RETURNING *
@@ -93,11 +102,21 @@ const uploadFiles = async (req, res) => {
 
         const savedFile = result.rows[0];
 
+        // ถ้าเป็น PDF บันทึกหน้าที่ 1 ลงตาราง uploaded_files_page
         if (file.mimetype === 'application/pdf') {
           await db.query(`
             INSERT INTO uploaded_files_page (file_id, filename, owner, work_detail, uploaded_at, client_ip, fullfile_path, folder_timestamp, page_number, similarity_status) 
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           `, [savedFile.id, originalFilename, owner, workDetail, savedFile.uploaded_at, clientIp, fullFilePath, folderTimestamp, 1, 'No']);
+        }
+
+        // ** Backup ไฟล์ไปยัง backupDir **
+        const backupFilePath = path.join(backupDir, path.basename(file.path));
+        try {
+          fs.copyFileSync(fullFilePath, backupFilePath);
+          console.log(`✅ Backup file created: ${backupFilePath}`);
+        } catch (backupErr) {
+          console.error(`❌ Backup failed for file ${originalFilename}:`, backupErr.message);
         }
 
         uploadedFiles.push({
@@ -130,15 +149,32 @@ const uploadFiles = async (req, res) => {
   }
 };
 
-// Get all files
+// Get all files - ✅ FIXED QUERY
 const getAllFiles = async (req, res) => {
   try {
     const { page = 1, limit = 50 } = req.query;
     const offset = (page - 1) * limit;
 
     const result = await db.query(`
-      SELECT id, filename, owner, work_detail, uploaded_at, ocr_text, receipt_date, total_amount, similarity_status 
-      FROM uploaded_files ORDER BY uploaded_at DESC LIMIT $1 OFFSET $2
+      SELECT 
+        uf.id, 
+        uf.filename, 
+        uf.owner, 
+        uf.work_detail, 
+        uf.uploaded_at, 
+        uf.ocr_text, 
+        uf.receipt_date, 
+        uf.total_amount, 
+        uf.similarity_status,
+        ufp.extract_entity,
+        ufp.extract_taxid
+      FROM 
+        uploaded_files AS uf
+      LEFT JOIN 
+        uploaded_files_page AS ufp ON uf.id = ufp.file_id AND ufp.page_number = 1
+      ORDER BY 
+        uf.uploaded_at DESC 
+      LIMIT $1 OFFSET $2
     `, [limit, offset]);
 
     const files = result.rows.map(file => ({
@@ -166,7 +202,7 @@ const getAllFiles = async (req, res) => {
   }
 };
 
-// ✅✅✅ THIS IS THE FIXED FUNCTION ✅✅✅
+// Get file by ID
 const getFileById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -194,28 +230,24 @@ const getFileById = async (req, res) => {
 
     const pages = pageResult.rows || [];
 
-    // --- NEW LOGIC START ---
-    // If the main file's OCR text is empty but there are pages with text,
-    // construct the main OCR text by joining the text from all pages.
     if (!file.ocr_text && pages.length > 0) {
       const fullOcrText = pages
-        .map(p => p.ocr_text)    // Get ocr_text from each page
-        .filter(Boolean)         // Filter out any empty/null page texts
-        .join('\n\n--- Page Break ---\n\n'); // Join them with a separator
+        .map(p => p.ocr_text)
+        .filter(Boolean)
+        .join('\n\n--- Page Break ---\n\n');
 
       if (fullOcrText) {
-        file.ocr_text = fullOcrText; // Assign the aggregated text to the main file object
+        file.ocr_text = fullOcrText;
         console.log(`✅ Constructed aggregated OCR text for file ID: ${id}`);
       }
     }
-    // --- NEW LOGIC END ---
 
     const fileExists = fs.existsSync(file.fullfile_path);
 
     res.json({
       success: true,
       data: {
-        ...file, // Now 'file' contains the potentially aggregated ocr_text
+        ...file,
         original_name: file.filename,
         file_size: fileExists ? fs.statSync(file.fullfile_path).size : 0,
         file_type: path.extname(file.filename).slice(1).toUpperCase(),
@@ -223,8 +255,8 @@ const getFileById = async (req, res) => {
         url: `/api/files/${file.id}/view`,
         download_url: `/api/files/${file.id}/download`,
         file_exists: fileExists,
-        has_ocr: !!file.ocr_text, // This check is now more reliable
-        pages: pages // Send the original page data as well
+        has_ocr: !!file.ocr_text,
+        pages: pages
       }
     });
 
@@ -309,8 +341,28 @@ const getMimeTypeFromExtension = (filename) => {
   return mimeTypes[ext] || 'application/octet-stream';
 };
 
-// (getFileStatistics and other functions remain the same)
-const getFileStatistics = async (req, res) => { /* ... implementation ... */ };
+// File statistics endpoint
+const getFileStatistics = async (req, res) => {
+  try {
+    const totalFilesResult = await db.query('SELECT COUNT(*) FROM uploaded_files');
+    const today = new Date().toISOString().slice(0, 10);
+    const todaysFilesResult = await db.query('SELECT COUNT(*) FROM uploaded_files WHERE DATE(uploaded_at) = $1', [today]);
+    const pendingResult = await db.query("SELECT COUNT(*) FROM uploaded_files WHERE status = 'Processing'");
+    const processedResult = await db.query("SELECT COUNT(*) FROM uploaded_files WHERE status = 'Processed'");
+
+    res.json({
+      success: true,
+      data: {
+        totalFiles: parseInt(totalFilesResult.rows[0].count),
+        todaysFiles: parseInt(todaysFilesResult.rows[0].count),
+        pendingFiles: parseInt(pendingResult.rows[0].count),
+        processedFiles: parseInt(processedResult.rows[0].count)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to get statistics: ' + error.message });
+  }
+};
 
 module.exports = {
   upload,

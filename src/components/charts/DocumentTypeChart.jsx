@@ -1,46 +1,68 @@
-// src/components/charts/DocumentTypeChart.jsx - กราฟแสดงสัดส่วนประเภทของเอกสารที่อัปโหลด เช่น ใบเสร็จ, สัญญา
-import React from 'react';
+// src/components/charts/DocumentTypeChart.jsx (New and Improved Version)
 
-const DocumentTypeChart = ({ files }) => {
-  const data = [
-    { type: 'Invoice', count: files.filter(f => f.type === 'Invoice').length, color: '#3b82f6' },
-    { type: 'Contract', count: files.filter(f => f.type === 'Contract').length, color: '#10b981' },
-    { type: 'Receipt', count: files.filter(f => f.type === 'Receipt').length, color: '#f59e0b' },
-    { type: 'Other', count: files.filter(f => f.type === 'Unknown').length, color: '#ef4444' }
-  ].filter(d => d.count > 0);
+import React, { useMemo } from 'react';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-  const total = data.reduce((sum, d) => sum + d.count, 0);
+// ชุดสีสำหรับกราฟ
+const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#6366F1', '#3B82F6'];
+
+const DocumentTypeChart = ({ files = [] }) => {
+  // ประมวลผลข้อมูลไฟล์ เพื่อนับจำนวนแต่ละประเภท
+  const chartData = useMemo(() => {
+    if (!files || files.length === 0) {
+      return [];
+    }
+
+    const typeCounts = files.reduce((acc, file) => {
+      const fileType = file.type || file.file_type || 'Unknown';
+      acc[fileType] = (acc[fileType] || 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(typeCounts).map(([name, value]) => ({ name, value }));
+  }, [files]);
+
+  if (chartData.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-slate-400">
+        <p>No document data to display.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="w-48 h-48 rounded-full relative overflow-hidden mb-4 bg-gray-100">
-        {data.map((item, index) => {
-          const percentage = (item.count / total) * 100;
-          const cumulativePercentage = data.slice(0, index).reduce((sum, d) => sum + (d.count / total) * 100, 0);
-          const startAngle = (cumulativePercentage / 100) * 2 * Math.PI - Math.PI / 2;
-          const endAngle = ((cumulativePercentage + percentage) / 100) * 2 * Math.PI - Math.PI / 2;
-
-          return (
-            <div
-              key={item.type}
-              className="absolute inset-0"
-              style={{
-                backgroundColor: item.color,
-                clipPath: `polygon(50% 50%, 50% 0%, ${50 + Math.cos(startAngle) * 50}% ${50 + Math.sin(startAngle) * 50}%, ${50 + Math.cos(endAngle) * 50}% ${50 + Math.sin(endAngle) * 50}%)`
-              }}
-            />
-          );
-        })}
-      </div>
-      <div className="space-y-2 text-sm">
-        {data.map(item => (
-          <div key={item.type} className="flex items-center space-x-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: item.color }}></div>
-            <span>{item.type}: {item.count}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    <ResponsiveContainer width="100%" height="100%">
+      <PieChart>
+        <Pie
+          data={chartData}
+          cx="50%"
+          cy="50%"
+          labelLine={false}
+          outerRadius={100}
+          fill="#8884d8"
+          dataKey="value"
+          nameKey="name"
+          stroke="none"
+        >
+          {chartData.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+          ))}
+        </Pie>
+        <Tooltip
+          formatter={(value, name) => [`${value} files`, name]}
+          contentStyle={{
+            background: 'white',
+            borderRadius: '0.75rem',
+            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+            border: '1px solid #e2e8f0'
+          }}
+        />
+        <Legend
+          iconType="circle"
+          wrapperStyle={{ fontSize: '14px', paddingTop: '20px' }}
+        />
+      </PieChart>
+    </ResponsiveContainer>
   );
 };
 
