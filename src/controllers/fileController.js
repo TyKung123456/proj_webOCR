@@ -1,4 +1,4 @@
-// src/controllers/fileController.js - เพิ่ม backup ไฟล์ที่อัปโหลด
+// src/controllers/fileController.js - เพิ่ม backup ไฟล์ที่อัปโหลด + รองรับ company_name, pn_name
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
@@ -19,10 +19,42 @@ const createSafeStorageFilename = (originalFilename) => {
   return `${uuid}${ext}`;
 };
 
+// ✅ Helper to parse filename for company_name and pn_name
+const parseFileName = (fileName) => {
+  console.log(`🔍 Server-side parsing filename: "${fileName}"`);
+
+  // Remove file extension
+  const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
+
+  // Find first underscore (from left to right)
+  const firstUnderscoreIndex = nameWithoutExt.indexOf('_');
+
+  if (firstUnderscoreIndex === -1 || firstUnderscoreIndex === 0) {
+    // No underscore found or underscore at beginning
+    return {
+      company_name: nameWithoutExt,
+      pn_name: '',
+      parsing_note: 'No valid underscore found - using entire name as company name'
+    };
+  }
+
+  // Split by first underscore (reading from left to right)
+  const company_name = nameWithoutExt.substring(0, firstUnderscoreIndex).trim();
+  const pn_name = nameWithoutExt.substring(firstUnderscoreIndex + 1).trim();
+
+  console.log(`🏢 Parsed company: "${company_name}", P/N: "${pn_name}"`);
+
+  return {
+    company_name: company_name || nameWithoutExt,
+    pn_name: pn_name || '',
+    parsing_note: `Parsed successfully: Company "${company_name}" + P/N "${pn_name}"`
+  };
+};
+
 const db = require('../config/database');
 
 // โฟลเดอร์ backup ไฟล์
-const backupDir = '/Users/amooks/Desktop/intern/n8n/backup';
+const backupDir = 'D:\\github\\n8n\\n8n\\backup';
 
 // สร้างโฟลเดอร์ backup ถ้ายังไม่มี
 if (!fs.existsSync(backupDir)) {
@@ -76,7 +108,7 @@ const upload = multer({
   }
 });
 
-// Upload multiple files endpoint
+// ✅ Enhanced Upload multiple files endpoint with company_name and pn_name support
 const uploadFiles = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
@@ -87,25 +119,58 @@ const uploadFiles = async (req, res) => {
     const owner = req.body.owner || req.user?.username || 'system';
     const clientIp = req.ip || 'unknown';
     const folderTimestamp = req.folderTimestamp;
+    const hasParsedData = req.body.hasParsedData === 'true';
     const uploadedFiles = [];
 
-    for (const file of req.files) {
+    console.log(`📤 Processing ${req.files.length} files with parsed data support...`);
+    if (hasParsedData) {
+      console.log('✅ Request contains parsed company/PN data from frontend');
+    }
+
+    for (let i = 0; i < req.files.length; i++) {
+      const file = req.files[i];
+
       try {
         let originalFilename = req.originalFileNames?.[file.filename] || Buffer.from(file.originalname, 'latin1').toString('utf8');
         const fullFilePath = file.path;
 
-        // บันทึกข้อมูลไฟล์ใน DB พร้อมสถานะ similarity_status = 'No'
+        // ✅ Get company_name and pn_name from frontend or parse from filename
+        let company_name, pn_name, parsing_note;
+
+        if (hasParsedData && req.body[`company_name_${i}`] !== undefined) {
+          // Use data from frontend
+          company_name = req.body[`company_name_${i}`] || '';
+          pn_name = req.body[`pn_name_${i}`] || '';
+          parsing_note = 'Parsed by frontend';
+          console.log(`🎯 Using frontend parsed data for file ${i}: Company="${company_name}", P/N="${pn_name}"`);
+        } else {
+          // Parse filename on server side as fallback
+          const parsed = parseFileName(originalFilename);
+          company_name = parsed.company_name;
+          pn_name = parsed.pn_name;
+          parsing_note = parsed.parsing_note;
+          console.log(`🔄 Server-side parsing for file ${i}: Company="${company_name}", P/N="${pn_name}"`);
+        }
+
+        // บันทึกข้อมูลไฟล์ใน DB พร้อมสถานะ similarity_status = 'No' และข้อมูลที่แยกได้
         const result = await db.query(`
-          INSERT INTO uploaded_files (filename, owner, work_detail, uploaded_at, client_ip, fullfile_path, folder_timestamp, similarity_status) 
-          VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7) RETURNING *
-        `, [originalFilename, owner, workDetail, clientIp, fullFilePath, folderTimestamp, 'No']);
+          INSERT INTO uploaded_files (
+            filename, owner, work_detail, uploaded_at, client_ip, fullfile_path, 
+            folder_timestamp, similarity_status, company_name, pn_name
+          ) 
+          VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, $8, $9) 
+          RETURNING *
+        `, [originalFilename, owner, workDetail, clientIp, fullFilePath, folderTimestamp, 'No', company_name, pn_name]);
 
         const savedFile = result.rows[0];
 
         // ถ้าเป็น PDF บันทึกหน้าที่ 1 ลงตาราง uploaded_files_page
         if (file.mimetype === 'application/pdf') {
           await db.query(`
-            INSERT INTO uploaded_files_page (file_id, filename, owner, work_detail, uploaded_at, client_ip, fullfile_path, folder_timestamp, page_number, similarity_status) 
+            INSERT INTO uploaded_files_page (
+              file_id, filename, owner, work_detail, uploaded_at, client_ip, 
+              fullfile_path, folder_timestamp, page_number, similarity_status
+            ) 
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           `, [savedFile.id, originalFilename, owner, workDetail, savedFile.uploaded_at, clientIp, fullFilePath, folderTimestamp, 1, 'No']);
         }
@@ -128,34 +193,87 @@ const uploadFiles = async (req, res) => {
           file_type: path.extname(originalFilename).slice(1).toUpperCase(),
           mime_type: file.mimetype,
           url: `/api/files/${savedFile.id}/view`,
+          company_name: savedFile.company_name,
+          pn_name: savedFile.pn_name,
+          parsing_note: parsing_note
         });
+
+        console.log(`✅ File ${i + 1}/${req.files.length} processed: ${originalFilename}`);
+
       } catch (fileError) {
-        console.error('Error processing file:', file.originalname, fileError);
+        console.error(`❌ Error processing file ${i}:`, file.originalname, fileError);
         if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
         uploadedFiles.push({ error: true, filename: file.originalname, message: fileError.message });
       }
     }
 
     const successCount = uploadedFiles.filter(f => !f.error).length;
+    const errorCount = uploadedFiles.filter(f => f.error).length;
+
+    console.log(`📊 Upload summary: ${successCount} success, ${errorCount} errors`);
+
     res.status(201).json({
       success: true,
-      message: `Successfully uploaded ${successCount} file(s)`,
-      data: uploadedFiles.filter(f => !f.error)
+      message: `Successfully uploaded ${successCount} file(s)${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
+      data: uploadedFiles.filter(f => !f.error),
+      errors: uploadedFiles.filter(f => f.error),
+      parsing_enabled: true
     });
 
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('❌ Upload error:', error);
     res.status(500).json({ success: false, message: 'Upload failed: ' + error.message });
   }
 };
 
-// Get all files - ✅ FIXED QUERY
+// ✅ Enhanced Get all files with company/pn search support
 const getAllFiles = async (req, res) => {
   try {
-    const { page = 1, limit = 50 } = req.query;
+    const {
+      page = 1,
+      limit = 50,
+      company_name,
+      pn_name,
+      search
+    } = req.query;
+
     const offset = (page - 1) * limit;
 
-    const result = await db.query(`
+    // Build dynamic WHERE clause
+    let whereConditions = [];
+    let queryParams = [];
+    let paramIndex = 1;
+
+    if (company_name) {
+      whereConditions.push(`uf.company_name ILIKE $${paramIndex}`);
+      queryParams.push(`%${company_name}%`);
+      paramIndex++;
+    }
+
+    if (pn_name) {
+      whereConditions.push(`uf.pn_name ILIKE $${paramIndex}`);
+      queryParams.push(`%${pn_name}%`);
+      paramIndex++;
+    }
+
+    if (search) {
+      whereConditions.push(`(
+        uf.filename ILIKE $${paramIndex} OR 
+        uf.company_name ILIKE $${paramIndex} OR 
+        uf.pn_name ILIKE $${paramIndex} OR 
+        uf.work_detail ILIKE $${paramIndex}
+      )`);
+      queryParams.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Add pagination parameters
+    queryParams.push(limit, offset);
+    const limitClause = `LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+
+    const query = `
       SELECT 
         uf.id, 
         uf.filename, 
@@ -166,16 +284,23 @@ const getAllFiles = async (req, res) => {
         uf.receipt_date, 
         uf.total_amount, 
         uf.similarity_status,
+        uf.company_name,
+        uf.pn_name,
         ufp.extract_entity,
         ufp.extract_taxid
       FROM 
         uploaded_files AS uf
       LEFT JOIN 
         uploaded_files_page AS ufp ON uf.id = ufp.file_id AND ufp.page_number = 1
+      ${whereClause}
       ORDER BY 
         uf.uploaded_at DESC 
-      LIMIT $1 OFFSET $2
-    `, [limit, offset]);
+      ${limitClause}
+    `;
+
+    console.log('🔍 Search query:', { company_name, pn_name, search });
+
+    const result = await db.query(query, queryParams);
 
     const files = result.rows.map(file => ({
       ...file,
@@ -184,7 +309,10 @@ const getAllFiles = async (req, res) => {
       mime_type: getMimeTypeFromExtension(file.filename)
     }));
 
-    const countResult = await db.query('SELECT COUNT(*) FROM uploaded_files');
+    // Count total for pagination (use same WHERE clause)
+    const countQuery = `SELECT COUNT(*) FROM uploaded_files AS uf ${whereClause}`;
+    const countParams = queryParams.slice(0, queryParams.length - 2); // Remove limit and offset
+    const countResult = await db.query(countQuery, countParams);
     const totalCount = parseInt(countResult.rows[0].count);
 
     res.json({
@@ -195,14 +323,20 @@ const getAllFiles = async (req, res) => {
         limit: parseInt(limit),
         total: totalCount,
         pages: Math.ceil(totalCount / limit)
+      },
+      search_criteria: {
+        company_name,
+        pn_name,
+        search
       }
     });
   } catch (error) {
+    console.error('❌ Error fetching files:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch files: ' + error.message });
   }
 };
 
-// Get file by ID
+// ✅ Enhanced Get file by ID with company/pn data
 const getFileById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -210,7 +344,8 @@ const getFileById = async (req, res) => {
     const fileResult = await db.query(`
       SELECT id, filename, owner, work_detail, uploaded_at, client_ip, ocr_text,
              receipt_date, total_amount, similarity_status, similar_to_file_id,
-             similarity_score, fullfile_path, folder_timestamp
+             similarity_score, fullfile_path, folder_timestamp,
+             company_name, pn_name
       FROM uploaded_files 
       WHERE id = $1
     `, [id]);
@@ -341,7 +476,7 @@ const getMimeTypeFromExtension = (filename) => {
   return mimeTypes[ext] || 'application/octet-stream';
 };
 
-// File statistics endpoint
+// ✅ Enhanced File statistics endpoint with company/pn insights
 const getFileStatistics = async (req, res) => {
   try {
     const totalFilesResult = await db.query('SELECT COUNT(*) FROM uploaded_files');
@@ -350,17 +485,91 @@ const getFileStatistics = async (req, res) => {
     const pendingResult = await db.query("SELECT COUNT(*) FROM uploaded_files WHERE status = 'Processing'");
     const processedResult = await db.query("SELECT COUNT(*) FROM uploaded_files WHERE status = 'Processed'");
 
+    // Company statistics
+    const companiesResult = await db.query(`
+      SELECT 
+        company_name, 
+        COUNT(*) as file_count,
+        COUNT(DISTINCT pn_name) as unique_pn_count
+      FROM uploaded_files 
+      WHERE company_name IS NOT NULL AND company_name != ''
+      GROUP BY company_name 
+      ORDER BY file_count DESC 
+      LIMIT 10
+    `);
+
+    // P/N statistics
+    const pnResult = await db.query(`
+      SELECT 
+        pn_name, 
+        company_name,
+        COUNT(*) as file_count
+      FROM uploaded_files 
+      WHERE pn_name IS NOT NULL AND pn_name != ''
+      GROUP BY pn_name, company_name 
+      ORDER BY file_count DESC 
+      LIMIT 10
+    `);
+
+    // Files without parsing data
+    const unparsedResult = await db.query(`
+      SELECT COUNT(*) FROM uploaded_files 
+      WHERE company_name IS NULL OR company_name = '' OR pn_name IS NULL OR pn_name = ''
+    `);
+
     res.json({
       success: true,
       data: {
         totalFiles: parseInt(totalFilesResult.rows[0].count),
         todaysFiles: parseInt(todaysFilesResult.rows[0].count),
         pendingFiles: parseInt(pendingResult.rows[0].count),
-        processedFiles: parseInt(processedResult.rows[0].count)
+        processedFiles: parseInt(processedResult.rows[0].count),
+        unparsedFiles: parseInt(unparsedResult.rows[0].count),
+        topCompanies: companiesResult.rows,
+        topPN: pnResult.rows,
+        parsing_stats: {
+          total_companies: companiesResult.rows.length,
+          total_unique_pn: pnResult.rows.length
+        }
       }
     });
   } catch (error) {
+    console.error('❌ Error getting statistics:', error);
     res.status(500).json({ success: false, message: 'Failed to get statistics: ' + error.message });
+  }
+};
+
+// ✅ New endpoint: Get company statistics
+const getCompanyStatistics = async (req, res) => {
+  try {
+    const { limit = 20 } = req.query;
+
+    const companiesResult = await db.query(`
+      SELECT 
+        company_name,
+        COUNT(*) as total_files,
+        COUNT(DISTINCT pn_name) as unique_pn_count,
+        MIN(uploaded_at) as first_upload,
+        MAX(uploaded_at) as last_upload,
+        ARRAY_AGG(DISTINCT pn_name ORDER BY pn_name) FILTER (WHERE pn_name IS NOT NULL AND pn_name != '') as pn_list
+      FROM uploaded_files 
+      WHERE company_name IS NOT NULL AND company_name != ''
+      GROUP BY company_name 
+      ORDER BY total_files DESC 
+      LIMIT $1
+    `, [limit]);
+
+    res.json({
+      success: true,
+      data: {
+        companies: companiesResult.rows,
+        total_companies: companiesResult.rows.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting company statistics:', error);
+    res.status(500).json({ success: false, message: 'Failed to get company statistics: ' + error.message });
   }
 };
 
@@ -372,5 +581,6 @@ module.exports = {
   viewFile,
   downloadFile,
   deleteFile,
-  getFileStatistics
+  getFileStatistics,
+  getCompanyStatistics
 };

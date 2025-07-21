@@ -3,6 +3,5 @@ node_modules/
 ocr_service.py
 ocr-frontend/
 (Back up)
-src/components/FileUpload.jsx
 uploads
 .env

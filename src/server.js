@@ -7,35 +7,29 @@ require('dotenv').config();
 
 const { Ollama } = require('ollama');
 const { Pool } = require('pg');
-const fileRoutes = require('./routes/fileRoutes'); // สมมติว่าไฟล์นี้มีอยู่
+const axios = require('axios');
+const fileRoutes = require('./routes/fileRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middlewares
+// Middleware
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Static files
-const uploadsDir = path.join(__dirname, (process.env.UPLOAD_DIR || '../uploads'));
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
+// Static upload path
+const uploadsDir = path.join(__dirname, process.env.UPLOAD_DIR || '../uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir));
 
-// API Routes for Files
+// API route for file handling
 app.use('/api', fileRoutes);
 
-// =================================================================
-// AI Chart Generation Logic
-// =================================================================
-
-// 1. ตั้งค่าการเชื่อมต่อ AI Ollama
-const OLLAMA_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:7869'; // ตัวอย่างค่าเริ่มต้น
+// ========== PostgreSQL & AI Chart ===========
+const OLLAMA_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:7869';
 const ollama = new Ollama({ host: OLLAMA_URL });
 
-// 2. ตั้งค่าการเชื่อมต่อฐานข้อมูล PostgreSQL จาก .env
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5433'),
@@ -44,13 +38,7 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || 'P@ssw0rd',
 });
 
-// 3. Schema ตาราง (ปรับให้ตรงกับฐานข้อมูลจริง)
 const DATABASE_SCHEMA = `
-You are an expert PostgreSQL data analyst.
-Given the following database schema, write a SQL query to answer the user's request.
-Your response MUST be a JSON object with two keys: "sql" containing only the SQL query string, and "chartType" containing the best chart type ('pie', 'bar', 'line').
-
-Schema:
 CREATE TABLE uploaded_files_page (
   id INT PRIMARY KEY,
   filename VARCHAR(255),
@@ -67,7 +55,6 @@ CREATE TABLE uploaded_files_page (
 );
 `;
 
-// 4. Helper function สำหรับจัดรูปแบบข้อมูล
 function formatDataForChart(rows, sqlQuery) {
   if (!rows || rows.length === 0) return { labels: [], datasets: [] };
   const labelKey = Object.keys(rows[0])[0];
@@ -91,18 +78,13 @@ function formatDataForChart(rows, sqlQuery) {
   };
 }
 
-// 5. API Endpoint สำหรับสร้างกราฟจากคำถามของผู้ใช้
 app.post('/api/generate-chart', async (req, res) => {
   const { userQuery, model } = req.body;
-  if (!userQuery) {
-    return res.status(400).json({ error: 'Query is required' });
-  }
+  if (!userQuery) return res.status(400).json({ error: 'Query is required' });
 
   try {
     const prompt = `${DATABASE_SCHEMA}\nUser's request: "${userQuery}"\nJSON Response:`;
     const modelToUse = model || process.env.OLLAMA_MODEL || 'qwen:0.5b';
-
-    console.log(`🤖 Generating chart with model: ${modelToUse}`);
 
     const aiResponse = await ollama.chat({
       model: modelToUse,
@@ -112,34 +94,47 @@ app.post('/api/generate-chart', async (req, res) => {
 
     const parsedResponse = JSON.parse(aiResponse.message.content);
     const { sql, chartType } = parsedResponse;
-    console.log('🤖 AI Generated SQL:', sql);
 
     const dbResult = await pool.query(sql);
     const chartData = formatDataForChart(dbResult.rows, sql);
 
     res.json({ chartType, chartData });
-
   } catch (error) {
     console.error('❌ Error in /api/generate-chart:', error);
     let errorMessage = 'เกิดข้อผิดพลาดในการสื่อสารกับ AI หรือฐานข้อมูล';
-    if (error.cause && error.cause.code === 'ECONNREFUSED') {
-      errorMessage = `ไม่สามารถเชื่อมต่อกับ AI Service ได้ที่ ${OLLAMA_URL}`;
-    } else if (error.message && error.message.includes('not found')) {
-      errorMessage = `ไม่พบโมเดล "${model}" ในเครื่อง กรุณาเลือกโมเดลอื่น หรือใช้คำสั่ง 'ollama pull ${model}'`;
-    } else if (error.code === '42P01') {
-      errorMessage = `เกิดข้อผิดพลาดในการ Query: ไม่พบตารางหรือคอลัมน์ในฐานข้อมูล โปรดตรวจสอบ DATABASE_SCHEMA`;
-    }
+    if (error.cause?.code === 'ECONNREFUSED') errorMessage = `ไม่สามารถเชื่อมต่อกับ AI Service ที่ ${OLLAMA_URL}`;
+    if (error.message?.includes('not found')) errorMessage = `ไม่พบโมเดล "${model}" ในเครื่อง กรุณา pull โมเดลก่อน`;
+    if (error.code === '42P01') errorMessage = 'ตารางหรือคอลัมน์ไม่ถูกต้อง โปรดตรวจสอบ DATABASE_SCHEMA';
     res.status(500).json({ error: errorMessage });
   }
 });
 
-// Route ทั่วไป
-app.get('/', (req, res) => {
-  res.json({ message: 'AI Chart API is running' });
+// ====== ✅ Label Studio Integration ======
+app.post('/api/send-to-labelstudio', async (req, res) => {
+  const { fileUrl, fileName } = req.body;
+  if (!fileUrl || !fileName) return res.status(400).json({ error: 'fileUrl and fileName are required' });
+
+  try {
+    const response = await axios.post(
+      `${process.env.LABEL_STUDIO_URL || 'http://localhost:8080'}/api/projects/1/import`,
+      [
+        { data: { image: fileUrl }, meta: { filename: fileName } }
+      ],
+      {
+        headers: { Authorization: `Token ${process.env.LABEL_STUDIO_TOKEN}` }
+      }
+    );
+
+    res.json({ success: true, labelStudioResponse: response.data });
+  } catch (err) {
+    console.error('❌ Error sending to Label Studio:', err.message);
+    res.status(500).json({ error: 'Failed to send to Label Studio' });
+  }
 });
-app.use('*', (req, res) => {
-  res.status(404).json({ message: 'Endpoint not found' });
-});
+
+// Root & fallback
+app.get('/', (req, res) => res.json({ message: 'AI Chart API is running' }));
+app.use('*', (req, res) => res.status(404).json({ message: 'Endpoint not found' }));
 
 // Global error handler
 app.use((error, req, res, next) => {
@@ -147,8 +142,7 @@ app.use((error, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// เริ่ม server
 app.listen(PORT, () => {
-  console.log(`🚀 Server with AI Chart running on http://localhost:${PORT}`);
-  console.log(`🤖 Connecting to AI Service at: ${OLLAMA_URL}`);
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+  console.log(`🤖 Ollama AI connected at ${OLLAMA_URL}`);
 });

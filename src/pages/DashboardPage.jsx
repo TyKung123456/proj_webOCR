@@ -88,8 +88,8 @@ const DashboardPage = ({
         <nav className="flex-1 p-4 space-y-2">
           {[
             { name: 'Home', icon: LayoutDashboard, page: 'home' },
-            { name: 'Anomaly Detection', icon: Search, page: 'groups' },
-            { name: 'Dashboard', icon: BarChart2, page: 'dashboard' },
+            { name: 'Detection', icon: Search, page: 'groups' },
+            { name: 'Analytics', icon: BarChart2, page: 'dashboard' },
           ].map(item => (
             <button key={item.name} onClick={() => { setCurrentPage(item.page); setSidebarOpen(false); }} title={sidebarCollapsed ? item.name : ''}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${currentPage === item.page ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-800'} ${sidebarCollapsed && 'justify-center'}`} >

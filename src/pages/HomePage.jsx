@@ -1,17 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
-// --- ✨ Icon Imports ---
+// --- ✨ Icon Imports (Updated) ---
 import {
   AlertTriangle, Eye, Trash2, Download, LineChart, MessageSquarePlus, UploadCloud,
   LayoutDashboard, Search, BarChart2, Files, CalendarClock, Loader, ScanEye,
   Menu, X, ChevronsLeft, ChevronsRight, FolderOpen, ArrowUp, ArrowDown,
-  Sun, Moon, // Added for Dark Mode Toggle
+  Sun, Moon, CheckCircle2, XCircle, HelpCircle,
 } from 'lucide-react';
 
-// --- ✨ Redesigned Components ---
+// --- ✨ Reusable Components ---
 
-// NOTE: For the toast to be dark, you need to set a theme on your ToastContainer
-// e.g., <ToastContainer theme={isDarkMode ? "dark" : "light"} />
 const ConfirmToast = ({ closeToast, onConfirm, message }) => (
   <div className="p-1">
     <div className="flex items-start gap-4">
@@ -39,6 +37,24 @@ const StatusPill = ({ status }) => {
   return (
     <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full font-medium text-sm ${current.bg} ${current.textC}`}>
       <span className={`h-2 w-2 rounded-full ${current.dot}`}></span>
+      {current.text}
+    </span>
+  );
+};
+
+// ✨ New Component for Quality Check Status
+const QualityCheckStatus = ({ status }) => {
+  const statusMap = {
+    pass: { text: 'Pass', icon: CheckCircle2, color: 'text-green-600 dark:text-green-500' },
+    fail: { text: 'Fail', icon: XCircle, color: 'text-red-600 dark:text-red-500' },
+    default: { text: status || 'Unknown', icon: HelpCircle, color: 'text-slate-500 dark:text-slate-400' }
+  };
+  const current = statusMap[status?.toLowerCase()] || statusMap.default;
+  const Icon = current.icon;
+
+  return (
+    <span className={`inline-flex items-center gap-2 ${current.color}`}>
+      <Icon size={18} />
       {current.text}
     </span>
   );
@@ -74,7 +90,6 @@ const HomePage = ({
   setShowUploadModal,
   setShowChatModal
 }) => {
-  // --- ✨ Dark Mode State Management ---
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const savedMode = localStorage.getItem('darkMode');
     return savedMode ? JSON.parse(savedMode) : window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -98,7 +113,14 @@ const HomePage = ({
   const filteredFiles = files.filter(file => {
     if (!filterText) return true;
     const lowercasedFilter = filterText.toLowerCase();
-    const searchableContent = [file.id, file.name || file.original_name, file.type, file.similarity_status].join(' ').toLowerCase();
+    const searchableContent = [
+      file.id,
+      file.name || file.original_name,
+      file.company_name,
+      file.pn_name,
+      file.quality_check,
+      file.similarity_status
+    ].join(' ').toLowerCase();
     return searchableContent.includes(lowercasedFilter);
   });
 
@@ -148,6 +170,17 @@ const HomePage = ({
       : <ArrowDown className="inline-block ml-1" size={14} />;
   };
 
+  const headers = [
+    { label: 'ID', key: 'id', sortable: true },
+    { label: 'File Name', key: 'name', sortable: false },
+    { label: 'Company', key: 'company_name', sortable: false },
+    { label: 'PN Name', key: 'pn_name', sortable: false },
+    { label: 'Quality Check', key: 'quality_check', sortable: false },
+    { label: 'Upload Date', key: 'uploaded_at', sortable: true },
+    { label: 'Status', key: 'status', sortable: false },
+    { label: '', key: 'actions', sortable: false }
+  ];
+
   const handleExportCSV = () => {
     const dataToExport = sortedFiles;
     if (dataToExport.length === 0) {
@@ -159,9 +192,11 @@ const HomePage = ({
     const rowsCSV = dataToExport.map(file => [
       file.id,
       `"${file.name || file.original_name || 'Unknown'}"`,
-      `"${file.type || file.file_type || 'Unknown'}"`,
-      `"${file.uploadedAt || file.uploaded_at || '-'}"`,
-      `"${file.similarity_status || 'Unknown'}"`
+      `"${file.company_name || '-'}"`,
+      `"${file.pn_name || '-'}"`,
+      `"${file.quality_check || 'Unknown'}"`,
+      `"${new Date(file.uploadedAt || file.uploaded_at || Date.now()).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })}"`,
+      `"${file.similarity_status || 'Unknown'}"`,
     ].join(','));
 
     const csvString = `${headersCSV}\n${rowsCSV.join('\n')}`;
@@ -175,17 +210,9 @@ const HomePage = ({
     document.body.removeChild(link);
   };
 
-  const headers = [
-    { label: 'ID', key: 'id', sortable: true },
-    { label: 'File Name', key: 'name', sortable: false },
-    { label: 'Type', key: 'type', sortable: false },
-    { label: 'Upload Date', key: 'uploaded_at', sortable: true },
-    { label: 'Status', key: 'status', sortable: false },
-    { label: '', key: 'actions', sortable: false }
-  ];
-
   return (
-    <div className="flex w-full bg-slate-50/50 dark:bg-slate-950">
+    // ✨ FIX: Apply classes for correct sticky layout behavior
+    <div className="flex w-full h-screen overflow-hidden bg-slate-50/50 dark:bg-slate-950">
       {/* --- Sidebar --- */}
       <div className={`fixed inset-y-0 left-0 z-50 bg-white dark:bg-slate-900 shadow-lg transform transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:translate-x-0 lg:flex lg:flex-col border-r border-slate-200 dark:border-slate-700 ${sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'}`}>
         <div className={`flex items-center justify-between p-4 h-20 border-b border-slate-200 dark:border-slate-700 ${sidebarCollapsed && 'lg:justify-center'}`}>
@@ -212,8 +239,9 @@ const HomePage = ({
 
       {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
-      {/* --- Main Content --- */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* --- Main Content (with scrolling) --- */}
+      {/* ✨ FIX: Apply overflow-y-auto to make this column scrollable */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <header className="flex items-center justify-between px-8 h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 -ml-2 text-slate-800 dark:text-slate-200"><Menu size={24} /></button>
@@ -252,8 +280,9 @@ const HomePage = ({
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-700 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-700/50">
-                  <tr>
+                {/* --- ✨ START: UPDATED THEAD --- */}
+                <thead className="bg-slate-50 dark:bg-slate-900/50">
+                  <tr className="border-b-2 border-slate-200 dark:border-slate-700">
                     {headers.map(h => (
                       <th key={h.key} onClick={h.sortable ? () => requestSort(h.key) : undefined}
                         className={`px-6 py-4 text-left font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider ${h.sortable ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700' : ''}`}>
@@ -262,19 +291,40 @@ const HomePage = ({
                     ))}
                   </tr>
                 </thead>
+                {/* --- ✨ END: UPDATED THEAD --- */}
+
+                {/* --- ✨ START: UPDATED TBODY (with all readability improvements) --- */}
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                   {paginatedFiles.length > 0 ? (
                     paginatedFiles.map((file) => (
-                      <tr key={file.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
-                        <td className="px-6 py-4 text-slate-600 dark:text-slate-300 font-mono">{file.id}</td>
+                      <tr
+                        key={file.id}
+                        onClick={() => setSelectedFile(file)}
+                        className="hover:bg-indigo-50/50 dark:hover:bg-indigo-900/30 transition-colors even:bg-slate-50/50 dark:even:bg-slate-800/50 cursor-pointer"
+                      >
+                        <td className="px-6 py-4 text-right text-slate-500 dark:text-slate-400 font-mono">{file.id}</td>
                         <td className="px-6 py-4 font-semibold text-slate-800 dark:text-slate-100">{file.name || file.original_name || 'Unknown'}</td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{file.type || file.file_type || 'Unknown'}</td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{new Date(file.uploadedAt || file.uploaded_at || Date.now()).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                        <td className="px-6 py-4"><StatusPill status={file.similarity_status} /></td>
+                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{file.company_name || '-'}</td>
+                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{file.pn_name || '-'}</td>
+                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400">
+                          <QualityCheckStatus status={file.quality_check} />
+                        </td>
+                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400">
+                          <div>{new Date(file.uploadedAt || file.uploaded_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                          <div className="text-xs text-slate-400 dark:text-slate-500">{new Date(file.uploadedAt || file.uploaded_at || Date.now()).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <StatusPill status={file.similarity_status} />
+                        </td>
                         <td className="px-6 py-4">
-                          <div className="flex justify-end items-center gap-2">
-                            <button onClick={() => setSelectedFile(file)} title="View Details" className="p-2 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 rounded-md transition"><Eye size={18} /></button>
-                            <button onClick={() => handleDeleteConfirm(file.id)} title="Delete" className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-md transition"><Trash2 size={18} /></button>
+                          <div className="flex justify-center items-center gap-2">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteConfirm(file.id); }}
+                              title="Delete"
+                              className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-md transition"
+                            >
+                              <Trash2 size={18} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -289,6 +339,7 @@ const HomePage = ({
                     </tr>
                   )}
                 </tbody>
+                {/* --- ✨ END: UPDATED TBODY --- */}
               </table>
             </div>
 
@@ -306,7 +357,6 @@ const HomePage = ({
                     ))}
                   </select>
                 </div>
-
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-slate-600 dark:text-slate-400">
                     Page {currentTablePage} of {totalPages}

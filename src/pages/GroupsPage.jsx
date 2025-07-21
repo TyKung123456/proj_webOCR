@@ -42,8 +42,8 @@ const GroupsPage = ({
         <nav className="flex-1 p-4 space-y-2">
           {[
             { name: 'Home', icon: LayoutDashboard, page: 'home' },
-            { name: 'Anomaly Detection', icon: Search, page: 'groups' },
-            { name: 'Dashboard', icon: BarChart2, page: 'dashboard' },
+            { name: 'Detection', icon: Search, page: 'groups' },
+            { name: 'Analytics', icon: BarChart2, page: 'dashboard' },
           ].map(item => (
             <button
               key={item.name}
