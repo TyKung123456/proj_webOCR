@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
 // --- ✨ Icon Imports ---
@@ -391,12 +392,12 @@ const HomePage = ({
                         </td>
                         <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
                           <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm">
-                            🏢 {file.company_name || 'N/A'}
+                            {file.company_name || 'N/A'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
                           <span className="inline-flex items-center px-2 py-1 rounded-md bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm">
-                            🔖 {file.pn_name || 'N/A'}
+                            {file.pn_name || 'N/A'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-slate-500 dark:text-slate-400">

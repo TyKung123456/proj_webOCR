@@ -1,4 +1,4 @@
-// src/services/ApiService.js - Fixed upload endpoint + support company_name & pn_name
+// src/services/ApiService.js - Original version without layout detection
 const API_BASE_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:3001/api' 
   : 'http://localhost:3001/api';

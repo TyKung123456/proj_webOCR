@@ -4,7 +4,24 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start-server": "node src/server.js",
+    "dev-server": "nodemon src/server.js --inspect=0.0.0.0:9229",
+    
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:dev": "docker-compose -f docker-compose.dev.yml up --build",
+    "docker:dev-down": "docker-compose -f docker-compose.dev.yml down",
+    "docker:dev-ai": "docker-compose -f docker-compose.dev.yml --profile ai up --build",
+    "docker:prod": "docker-compose up --build -d",
+    "docker:logs": "docker-compose logs -f",
+    "docker:logs-dev": "docker-compose -f docker-compose.dev.yml logs -f",
+    "docker:clean": "docker-compose down -v && docker system prune -f",
+    
+    "test": "echo \"No tests specified yet\"",
+    "lint": "echo \"No linting configured yet\"",
+    "type-check": "echo \"No type checking configured yet\""
   },
   "dependencies": {
     "chart.js": "^4.5.0",
@@ -34,8 +51,26 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
     "autoprefixer": "^10.4.21",
+    "nodemon": "^3.1.10",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "vite": "^4.0.0"
-  }
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "ocr",
+    "frontend",
+    "react",
+    "vite",
+    "express",
+    "postgresql",
+    "ai",
+    "typhoon",
+    "docker"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
 }
