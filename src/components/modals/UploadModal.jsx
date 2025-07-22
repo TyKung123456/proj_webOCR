@@ -1,4 +1,4 @@
-// src/components/modals/UploadModal.jsx - Fixed scrolling issue completely
+// src/components/modals/UploadModal.jsx - Fixed scrolling issue completely + File name parsing
 import React, { useState } from 'react';
 import ApiService from '../../services/ApiService.js';
 
@@ -9,6 +9,62 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
   const [errors, setErrors] = useState([]);
+
+  // ✅ Parse file name to extract company_name and pn_name
+  // การอ่านชื่อไฟล์จากซ้ายไปขวา: ชื่อบริษัท_เลขP/N_เอกสาร
+  const parseFileName = (fileName) => {
+    console.log(`🔍 Parsing filename: "${fileName}"`);
+    
+    // Remove file extension
+    const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
+    console.log(`📝 Name without extension: "${nameWithoutExt}"`);
+    
+    // Find first underscore (from left to right)
+    const firstUnderscoreIndex = nameWithoutExt.indexOf('_');
+    console.log(`📍 First underscore position: ${firstUnderscoreIndex}`);
+    
+    if (firstUnderscoreIndex === -1) {
+      // No underscore found, return original name as company_name and empty pn_name
+      console.log(`⚠️ No underscore found, using entire name as company_name`);
+      return {
+        company_name: nameWithoutExt,
+        pn_name: '',
+        parsing_note: 'No underscore found - entire name used as company name'
+      };
+    }
+    
+    if (firstUnderscoreIndex === 0) {
+      // Underscore at the beginning, invalid format
+      console.log(`⚠️ Invalid format: underscore at beginning`);
+      return {
+        company_name: nameWithoutExt,
+        pn_name: '',
+        parsing_note: 'Invalid format - underscore at beginning'
+      };
+    }
+    
+    // Split by first underscore (reading from left to right)
+    const company_name = nameWithoutExt.substring(0, firstUnderscoreIndex);
+    const pn_name = nameWithoutExt.substring(firstUnderscoreIndex + 1);
+    
+    console.log(`🏢 Company name: "${company_name}"`);
+    console.log(`🔖 P/N name: "${pn_name}"`);
+    
+    // Validate extracted data
+    if (!company_name.trim()) {
+      return {
+        company_name: nameWithoutExt,
+        pn_name: '',
+        parsing_note: 'Empty company name - using entire filename'
+      };
+    }
+    
+    return {
+      company_name: company_name.trim(),
+      pn_name: pn_name.trim(),
+      parsing_note: `Parsed successfully: Company "${company_name.trim()}" + P/N "${pn_name.trim()}"`
+    };
+  };
 
   // ✅ File input handler
   const handleFileSelect = (event) => {
@@ -34,13 +90,22 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
     addFiles(files);
   };
 
-  // ✅ Add files with validation
+  // ✅ Add files with validation and file name parsing
   const addFiles = (newFiles) => {
     const validFiles = [];
     const newErrors = [];
 
-    newFiles.forEach(file => {
+    console.log('📁 Adding new files:', newFiles);
+
+    newFiles.forEach((file, index) => {
       try {
+        console.log(`🔍 Processing file ${index}:`, {
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          isFile: file instanceof File
+        });
+
         // Validate file
         ApiService.validateFile(file);
         
@@ -52,9 +117,39 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
         if (isDuplicate) {
           newErrors.push(`File "${file.name}" is already selected`);
         } else {
-          validFiles.push(file);
+          // Parse file name to extract company_name and pn_name
+          const { company_name, pn_name, parsing_note } = parseFileName(file.name);
+          
+          // Create a new File object with additional properties
+          // Note: We can't directly modify File object, so we create a wrapper
+          const enhancedFile = Object.assign(file, {
+            company_name,
+            pn_name,
+            parsing_note,
+            parsed_name: {
+              company_name,
+              pn_name,
+              parsing_note
+            }
+          });
+          
+          console.log(`✅ Enhanced file ${index}:`, {
+            name: enhancedFile.name,
+            company_name: enhancedFile.company_name,
+            pn_name: enhancedFile.pn_name,
+            isFile: enhancedFile instanceof File
+          });
+          
+          validFiles.push(enhancedFile);
+          
+          console.log(`📝 Parsed file "${file.name}":`, {
+            company_name,
+            pn_name,
+            parsing_note
+          });
         }
       } catch (error) {
+        console.error(`❌ Error processing file ${index}:`, error);
         newErrors.push(error.message);
       }
     });
@@ -67,6 +162,8 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
     if (newErrors.length > 0) {
       setTimeout(() => setErrors([]), 5000);
     }
+
+    console.log(`📊 Files added: ${validFiles.length} valid, ${newErrors.length} errors`);
   };
 
   // ✅ Remove file from selection
@@ -86,9 +183,52 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
       setErrors([]);
 
       console.log('🚀 Starting upload process...');
+      console.log('📂 Selected files before processing:', selectedFiles);
+
+      // Debug: Check each file's properties
+      selectedFiles.forEach((file, index) => {
+        console.log(`🔍 File ${index} debug:`, {
+          file: file,
+          name: file?.name,
+          type: file?.type,
+          size: file?.size,
+          company_name: file?.company_name,
+          pn_name: file?.pn_name,
+          isFileInstance: file instanceof File
+        });
+      });
+
+      // Prepare files with parsed data in the correct format
+      const filesWithParsedData = selectedFiles.map((file, index) => {
+        // Ensure we have a valid File object
+        if (!(file instanceof File)) {
+          console.error(`❌ File ${index} is not a File instance:`, file);
+          throw new Error(`File ${index} is not a valid File object`);
+        }
+
+        if (!file.name) {
+          console.error(`❌ File ${index} has no name:`, file);
+          throw new Error(`File ${index} has no name property`);
+        }
+
+        return {
+          file: file, // The actual File object
+          company_name: file.company_name || '',
+          pn_name: file.pn_name || '',
+          work_detail: workDetail
+        };
+      });
+
+      console.log('📋 Files prepared for upload:', filesWithParsedData.map(f => ({
+        name: f.file.name,
+        type: f.file.type,
+        size: f.file.size,
+        company: f.company_name,
+        pn: f.pn_name
+      })));
 
       // Upload files using ApiService
-      const result = await ApiService.uploadFiles(selectedFiles, workDetail);
+      const result = await ApiService.uploadFiles(filesWithParsedData, workDetail);
 
       console.log('✅ Upload completed:', result);
 
@@ -113,9 +253,9 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
     }
   };
 
-  // ✅ Get file preview
+  // ✅ Get file preview - Fixed null safety
   const getFilePreview = (file) => {
-    if (file.type.startsWith('image/')) {
+    if (file && file.type && file.type.startsWith('image/')) {
       return URL.createObjectURL(file);
     }
     return null;
@@ -152,6 +292,27 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
                 </ul>
               </div>
             )}
+
+            {/* File Name Format Info */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="text-blue-800 font-medium mb-2">📋 File Name Format (อ่านจากซ้ายไปขวา):</h4>
+              <div className="space-y-2 text-sm">
+                <p className="text-blue-700">
+                  <strong>รูปแบบ:</strong> <code className="bg-blue-100 px-2 py-1 rounded">ชื่อบริษัท_เลขP/N_เอกสาร.pdf</code>
+                </p>
+                <div className="text-blue-600 text-xs space-y-1">
+                  <p><strong>ตัวอย่าง:</strong></p>
+                  <ul className="list-disc list-inside ml-4 space-y-1">
+                    <li>"Apple_iPhone15_Manual.pdf" → บริษัท: "Apple", P/N: "iPhone15_Manual"</li>
+                    <li>"Samsung_Galaxy_S24_Specification.pdf" → บริษัท: "Samsung", P/N: "Galaxy_S24_Specification"</li>
+                    <li>"Microsoft_Surface_Pro_9_UserGuide.pdf" → บริษัท: "Microsoft", P/N: "Surface_Pro_9_UserGuide"</li>
+                  </ul>
+                  <p className="text-orange-600 mt-2">
+                    <strong>หมายเหตุ:</strong> ใช้เครื่องหมาย _ (underscore) ตัวแรกเป็นตัวแบ่งเท่านั้น
+                  </p>
+                </div>
+              </div>
+            </div>
 
             {/* Drop Zone */}
             <div
@@ -233,7 +394,7 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
                               />
                             ) : (
                               <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center text-2xl">
-                                {file.type.includes('pdf') ? '📄' : '📁'}
+                                {(file.type && file.type.includes('pdf')) ? '📄' : '📁'}
                               </div>
                             )}
                           </div>
@@ -245,8 +406,22 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
                             </p>
                             <div className="flex items-center space-x-4 text-xs text-gray-500">
                               <span>{Math.round(file.size / 1024)} KB</span>
-                              <span>{file.type}</span>
+                              <span>{file.type || 'Unknown'}</span>
                               <span>{new Date(file.lastModified).toLocaleDateString()}</span>
+                            </div>
+                            {/* Show parsed data */}
+                            <div className="mt-1 text-xs">
+                              <span className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded mr-2">
+                                🏢 {file.company_name || 'N/A'}
+                              </span>
+                              <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                🔖 {file.pn_name || 'N/A'}
+                              </span>
+                              {file.parsing_note && (
+                                <div className="mt-1 text-xs text-gray-600 italic">
+                                  💡 {file.parsing_note}
+                                </div>
+                              )}
                             </div>
                           </div>
 

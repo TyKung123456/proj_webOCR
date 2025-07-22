@@ -16,8 +16,8 @@ const Layout = ({
 }) => {
     const pageTitles = {
         home: 'Customer Files',
-        groups: 'Anomaly Detection',
-        dashboard: 'Analytics Dashboard'
+        groups: 'Detection',
+        dashboard: 'Analytics'
     };
 
     return (

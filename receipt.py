@@ -12,7 +12,7 @@ GEMINI_API_URL = f'https://generativelanguage.googleapis.com/v1beta/models/gemin
 
 DB_CONFIG = {
     "host": "localhost",
-    "database": "myprj_receipt",
+    "database": "n8n",
     "user": "admin",
     "password": "P@ssw0rd",
     "port": 5433

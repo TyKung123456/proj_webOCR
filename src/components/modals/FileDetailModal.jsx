@@ -120,7 +120,7 @@ const FileDetailModal = ({ file, onClose, onDelete }) => {
   return (
     // ✅ Main backdrop and centering container
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 sm:p-6 md:p-8">
-      {/* ✅ Modal container with new size constraints */}
+      {/* ✅ Modal container with size constraints */}
       <div className="bg-white rounded-2xl w-full h-full max-w-7xl max-h-[95vh] flex flex-col shadow-2xl">
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between p-4 md:p-6 border-b border-gray-200 bg-gray-50 rounded-t-2xl">

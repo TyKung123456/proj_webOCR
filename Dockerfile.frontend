@@ -1,0 +1,24 @@
+# Dockerfile.frontend (วางไว้ใน root โปรเจกต์ ocr-frontend)
+
+FROM node:18 AS build
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy all source files
+COPY . .
+
+# Build for production
+RUN npm run build
+
+# --- Serve with Nginx ---
+FROM nginx:stable-alpine
+RUN rm -rf /usr/share/nginx/html/*
+COPY --from=build /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

@@ -1,4 +1,4 @@
-// src/services/ApiService.js - Fixed upload endpoint
+// src/services/ApiService.js - Original version without layout detection
 const API_BASE_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:3001/api' 
   : 'http://localhost:3001/api';
@@ -38,30 +38,93 @@ class ApiService {
     }
   }
 
-  // ✅ Upload multiple files with FIXED endpoint
-  static async uploadFiles(files, workDetail = '') {
+  // ✅ Upload multiple files with parsed company_name and pn_name support
+  static async uploadFiles(filesWithParsedData, workDetail = '') {
     try {
-      if (!files || files.length === 0) {
+      if (!filesWithParsedData || filesWithParsedData.length === 0) {
         throw new Error('No files selected for upload');
       }
 
-      console.log(`📤 Uploading ${files.length} files...`);
-
-      // Validate files before upload
-      this.validateFiles(files);
+      console.log(`📤 Uploading ${filesWithParsedData.length} files with parsed data...`);
 
       const formData = new FormData();
       
-      // Add files to FormData
-      files.forEach(file => {
-        formData.append('files', file);
-        console.log(`📎 Added file: ${file.name} (${file.size} bytes)`);
-      });
+      // Handle different input formats
+      if (Array.isArray(filesWithParsedData) && filesWithParsedData[0]?.file) {
+        // New format with parsed data: [{ file, company_name, pn_name, work_detail }]
+        console.log('🔄 Processing files with parsed data format...');
+        
+        filesWithParsedData.forEach((fileData, index) => {
+          const file = fileData.file;
+          
+          console.log(`📋 Processing file ${index + 1}:`, {
+            name: file?.name || 'undefined',
+            type: file?.type || 'undefined',
+            size: file?.size || 'undefined',
+            company: fileData.company_name,
+            pn: fileData.pn_name
+          });
+          
+          // Validate file before upload
+          this.validateFile(file);
+          
+          // Add file to FormData
+          formData.append('files', file);
+          
+          // Add parsed data for each file
+          formData.append(`company_name_${index}`, fileData.company_name || '');
+          formData.append(`pn_name_${index}`, fileData.pn_name || '');
+          
+          console.log(`📎 Added file ${index}: ${file.name}`);
+          console.log(`🏢 Company: ${fileData.company_name}`);
+          console.log(`🔖 P/N: ${fileData.pn_name}`);
+        });
+        
+        // Add work detail from parameter or first file's work_detail
+        const workDetailToUse = workDetail || filesWithParsedData[0]?.work_detail || '';
+        if (workDetailToUse.trim()) {
+          formData.append('workDetail', workDetailToUse.trim());
+        }
+        
+      } else {
+        // Legacy format: direct file array (for backward compatibility)
+        console.log('🔄 Processing files in legacy format...');
+        const files = Array.isArray(filesWithParsedData) ? filesWithParsedData : [filesWithParsedData];
+        
+        // Validate files before upload
+        this.validateFiles(files);
 
-      // Add work detail if provided
-      if (workDetail && workDetail.trim()) {
-        formData.append('workDetail', workDetail.trim());
+        files.forEach((file, index) => {
+          console.log(`📋 Processing legacy file ${index + 1}:`, {
+            name: file?.name || 'undefined',
+            type: file?.type || 'undefined',
+            size: file?.size || 'undefined'
+          });
+          
+          formData.append('files', file);
+          
+          // Extract company_name and pn_name if available in file object
+          if (file.company_name !== undefined) {
+            formData.append(`company_name_${index}`, file.company_name || '');
+          }
+          if (file.pn_name !== undefined) {
+            formData.append(`pn_name_${index}`, file.pn_name || '');
+          }
+          
+          console.log(`📎 Added file ${index}: ${file.name} (${file.size} bytes)`);
+        });
+
+        // Add work detail if provided
+        if (workDetail && workDetail.trim()) {
+          formData.append('workDetail', workDetail.trim());
+        }
       }
+
+      // Add metadata about the parsing
+      formData.append('hasParsedData', 'true');
+      formData.append('uploadTimestamp', new Date().toISOString());
+
+      console.log('🚀 Sending files to server...');
 
       // ✅ FIXED: Use correct endpoint /files/upload (not /files/uploads)
       const response = await fetch(`${API_BASE_URL}/files/upload`, {
@@ -76,7 +139,7 @@ class ApiService {
         throw new Error(result.message || `Upload failed: ${response.status}`);
       }
 
-      console.log(`✅ Upload successful: ${result.data.length} files uploaded`);
+      console.log(`✅ Upload successful: ${result.data.length} files uploaded with parsed data`);
       return result;
 
     } catch (error) {
@@ -85,7 +148,7 @@ class ApiService {
     }
   }
 
-  // ✅ Get all files with pagination
+  // ✅ Get all files with pagination and search by company/pn
   static async getFiles(params = {}) {
     const queryParams = new URLSearchParams();
     
@@ -94,9 +157,30 @@ class ApiService {
     if (params.limit) queryParams.append('limit', params.limit);
     if (params.status) queryParams.append('status', params.status);
     if (params.type) queryParams.append('type', params.type);
+    
+    // Add search parameters for company_name and pn_name
+    if (params.company_name) queryParams.append('company_name', params.company_name);
+    if (params.pn_name) queryParams.append('pn_name', params.pn_name);
+    if (params.search) queryParams.append('search', params.search);
 
     const endpoint = queryParams.toString() ? `/files?${queryParams}` : '/files';
     return this.request(endpoint);
+  }
+
+  // ✅ Search files by company name
+  static async searchByCompany(companyName, params = {}) {
+    return this.getFiles({
+      ...params,
+      company_name: companyName
+    });
+  }
+
+  // ✅ Search files by P/N
+  static async searchByPN(pnName, params = {}) {
+    return this.getFiles({
+      ...params,
+      pn_name: pnName
+    });
   }
 
   // ✅ Get file by ID with full details
@@ -104,9 +188,14 @@ class ApiService {
     return this.request(`/files/${id}`);
   }
 
-  // ✅ Get file statistics
+  // ✅ Get file statistics (enhanced with company/pn stats)
   static async getFileStatistics() {
     return this.request('/files/statistics');
+  }
+
+  // ✅ Get company statistics
+  static async getCompanyStatistics() {
+    return this.request('/files/statistics/companies');
   }
 
   // ✅ Delete file
@@ -214,8 +303,25 @@ class ApiService {
     return '📁';
   }
 
-  // ✅ Validate file before upload
+  // ✅ Validate file before upload - Enhanced with null safety
   static validateFile(file) {
+    // Check if file object exists and has required properties
+    if (!file) {
+      throw new Error('File object is missing');
+    }
+
+    if (!file.name) {
+      throw new Error('File name is missing');
+    }
+
+    if (!file.type) {
+      throw new Error(`File "${file.name}" has missing type information`);
+    }
+
+    if (typeof file.size !== 'number') {
+      throw new Error(`File "${file.name}" has invalid size information`);
+    }
+
     const maxSize = 50 * 1024 * 1024; // 50MB
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
     
@@ -224,9 +330,10 @@ class ApiService {
     }
 
     if (!allowedTypes.includes(file.type)) {
-      throw new Error(`File "${file.name}" has unsupported type. Only PDF, JPG, PNG files are allowed.`);
+      throw new Error(`File "${file.name}" has unsupported type "${file.type}". Only PDF, JPG, PNG files are allowed.`);
     }
 
+    console.log(`✅ File validation passed: ${file.name} (${file.type}, ${Math.round(file.size / 1024)}KB)`);
     return true;
   }
 
