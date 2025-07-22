@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
 // --- ✨ Icon Imports (Updated) ---
@@ -36,22 +35,6 @@ const StatusPill = ({ status }) => {
 };
 
 const QualityCheckStatus = ({ status }) => {
-  const statusMap = { pass: { text: 'Pass', icon: CheckCircle2, color: 'text-green-600 dark:text-green-500' }, fail: { text: 'Fail', icon: XCircle, color: 'text-red-600 dark:text-red-500' }, default: { text: status || 'Unknown', icon: HelpCircle, color: 'text-slate-500 dark:text-slate-400' } };
-  const current = statusMap[status?.toLowerCase()] || statusMap.default;
-  const Icon = current.icon;
-  return <span className={`inline-flex items-center gap-1.5 font-medium text-sm ${current.color}`}><Icon size={16} />{current.text}</span>;
-};
-
-const SimilarityStatusPill = ({ status }) => {
-  const normalizedStatus = status?.toLowerCase().trim() || 'unknown';
-  const statusMap = { 'matched': { text: 'Matched', bg: 'bg-purple-100 dark:bg-purple-800', textC: 'text-purple-800 dark:text-purple-100', dot: 'bg-purple-500' }, 'no match': { text: 'No Match', bg: 'bg-slate-100 dark:bg-slate-800', textC: 'text-slate-700 dark:text-slate-200', dot: 'bg-slate-400' }, 'requires review': { text: 'Review', bg: 'bg-orange-100 dark:bg-orange-800', textC: 'text-orange-800 dark:text-orange-100', dot: 'bg-orange-400' }, 'unknown': { text: 'Unknown', bg: 'bg-gray-100 dark:bg-gray-800', textC: 'text-gray-700 dark:text-gray-200', dot: 'bg-gray-400' } };
-  const current = statusMap[normalizedStatus] || statusMap.unknown;
-  const displayText = statusMap[normalizedStatus] ? current.text : (status || 'Unknown');
-  return <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full font-medium text-xs ${current.bg} ${current.textC}`}><span className={`h-1.5 w-1.5 rounded-full ${current.dot}`}></span>{displayText}</span>;
-};
-
-// ✨ New Component for Quality Check Status
-const QualityCheckStatus = ({ status }) => {
   const statusMap = {
     pass: { text: 'Pass', icon: CheckCircle2, color: 'text-green-600 dark:text-green-500' },
     fail: { text: 'Fail', icon: XCircle, color: 'text-red-600 dark:text-red-500' },
@@ -61,11 +44,19 @@ const QualityCheckStatus = ({ status }) => {
   const Icon = current.icon;
 
   return (
-    <span className={`inline-flex items-center gap-2 ${current.color}`}>
-      <Icon size={18} />
+    <span className={`inline-flex items-center gap-1.5 font-medium text-sm ${current.color}`}>
+      <Icon size={16} />
       {current.text}
     </span>
   );
+};
+
+const SimilarityStatusPill = ({ status }) => {
+  const normalizedStatus = status?.toLowerCase().trim() || 'unknown';
+  const statusMap = { 'matched': { text: 'Matched', bg: 'bg-purple-100 dark:bg-purple-800', textC: 'text-purple-800 dark:text-purple-100', dot: 'bg-purple-500' }, 'no match': { text: 'No Match', bg: 'bg-slate-100 dark:bg-slate-800', textC: 'text-slate-700 dark:text-slate-200', dot: 'bg-slate-400' }, 'requires review': { text: 'Review', bg: 'bg-orange-100 dark:bg-orange-800', textC: 'text-orange-800 dark:text-orange-100', dot: 'bg-orange-400' }, 'unknown': { text: 'Unknown', bg: 'bg-gray-100 dark:bg-gray-800', textC: 'text-gray-700 dark:text-gray-200', dot: 'bg-gray-400' } };
+  const current = statusMap[normalizedStatus] || statusMap.unknown;
+  const displayText = statusMap[normalizedStatus] ? current.text : (status || 'Unknown');
+  return <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full font-medium text-xs ${current.bg} ${current.textC}`}><span className={`h-1.5 w-1.5 rounded-full ${current.dot}`}></span>{displayText}</span>;
 };
 
 const StatCard = ({ title, value, icon: Icon, color }) => (
@@ -90,7 +81,6 @@ const FileCard = ({ file, isSelected, onSelect, onCardClick, isSelectionMode }) 
           <FileText className="text-indigo-600 dark:text-indigo-400" size={24} />
         </div>
         <div className="flex-1 min-w-0">
-          {/* --- 🚨 FIXED HERE --- */}
           <p className="font-bold text-slate-800 dark:text-slate-100 truncate" title={file.filename}>{file.filename || 'Unknown'}</p>
           <p className="text-sm text-slate-400">ID: {file.id}</p>
         </div>
@@ -122,7 +112,6 @@ const HomePage = ({
 
   const filteredFiles = useMemo(() => files.filter(file => {
     const lowercasedFilter = filterText.toLowerCase();
-    // --- 🚨 UPDATED SEARCH LOGIC ---
     const searchableContent = [file.id, file.filename, file.company_name, file.pn_name].join(' ').toLowerCase();
     if (filterText && !searchableContent.includes(lowercasedFilter)) return false;
     if (filterProcessingStatus !== 'all' && (file.processing_status || '').toLowerCase() !== filterProcessingStatus) return false;
@@ -134,7 +123,6 @@ const HomePage = ({
     let sortableItems = [...filteredFiles];
     if (sortConfig.key) {
       sortableItems.sort((a, b) => {
-        // --- This sort logic already correctly handles 'filename' ---
         const keyMap = { id: ['id'], uploaded_at: ['uploaded_at', 'uploadedAt'], name: ['filename', 'name', 'original_name'], processing_status: ['processing_status'], company_name: ['company_name'], pn_name: ['pn_name'] };
         const getValue = (obj, key) => { const pKeys = keyMap[key] || [key]; for (const pKey of pKeys) { if (obj[pKey] !== undefined && obj[pKey] !== null) return obj[pKey]; } return null; };
         const valA = getValue(a, sortConfig.key); const valB = getValue(b, sortConfig.key);
@@ -233,7 +221,6 @@ const HomePage = ({
                           <tr key={file.id} onClick={() => isSelectionMode ? handleSelectOne(file.id) : setSelectedFile(file)} className={`transition-colors cursor-pointer ${isSelected ? 'bg-indigo-100 dark:bg-indigo-900/50' : 'hover:bg-indigo-50/50 dark:hover:bg-indigo-900/30 even:bg-slate-50/50 dark:even:bg-slate-800/50'}`}>
                             <td className="px-3 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>{isSelectionMode && <input type="checkbox" className="form-checkbox h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:checked:bg-indigo-500" checked={isSelected} onChange={() => handleSelectOne(file.id)} />}</td>
                             <td className="px-3 py-3 text-center text-slate-500 dark:text-slate-400 font-mono">{file.id}</td>
-                            {/* --- 🚨 FIXED HERE --- */}
                             <td className="px-3 py-3 font-semibold text-slate-800 dark:text-slate-100 break-words">{file.filename || 'Unknown'}</td>
                             <td className="px-3 py-3 text-slate-500 dark:text-slate-400 break-words">{file.company_name || '-'}</td>
                             <td className="px-3 py-3 text-slate-500 dark:text-slate-400 break-words">{file.pn_name || '-'}</td>

@@ -33,7 +33,7 @@ const ollama = new Ollama({ host: OLLAMA_URL });
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5433'),
-  database: process.env.DB_NAME || 'myprj_receipt',
+  database: process.env.DB_NAME || 'n8n',
   user: process.env.DB_USER || 'admin',
   password: process.env.DB_PASSWORD || 'P@ssw0rd',
 });

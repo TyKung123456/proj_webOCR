@@ -7,7 +7,7 @@ const { Pool } = require('pg');
 const db = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5433'),
-  database: process.env.DB_NAME || 'myprj_receipt',
+  database: process.env.DB_NAME || 'n8n',
   user: process.env.DB_USER || 'admin',
   password: process.env.DB_PASSWORD || 'P@ssw0rd',
 });
@@ -64,6 +64,7 @@ exports.upload = multer({ storage: storage, fileFilter: fileFilter, limits: { fi
 
 // --- Controller Functions ---
 
+// ✅ Fixed Upload Function
 exports.uploadFiles = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
@@ -94,21 +95,67 @@ exports.uploadFiles = async (req, res) => {
           pn_name = parsed.pn_name;
         }
 
+        // 🚨 FIXED: Corrected column count and parameter alignment
         const result = await db.query(
-          `INSERT INTO uploaded_files (filename, owner, work_detail, uploaded_at, client_ip, fullfile_path, folder_timestamp, similarity_status, company_name, pn_name, file_size, file_type, processing_status) 
-           VALUES ($1, $2, $3, NOW(), $4, $5, $6, 'No', $7, $8, $9, $10, 'pending') RETURNING *`,
-          [originalFilename, owner, workDetail, clientIp, fullFilePath, folderTimestamp, company_name, pn_name, size, mimetype]
+          `INSERT INTO uploaded_files (
+            filename, 
+            owner, 
+            work_detail, 
+            client_ip, 
+            fullfile_path, 
+            folder_timestamp, 
+            similarity_status, 
+            company_name, 
+            pn_name, 
+            processing_status
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+          [
+            originalFilename,    // $1
+            owner,              // $2
+            workDetail,         // $3
+            clientIp,           // $4
+            fullFilePath,       // $5
+            folderTimestamp,    // $6
+            'No',              // $7 - similarity_status
+            company_name,       // $8
+            pn_name,           // $9
+            'pending'          // $10 - processing_status
+          ]
         );
+        
         const savedFile = result.rows[0];
 
+        // Handle PDF files - insert page record
         if (file.mimetype === 'application/pdf') {
           await db.query(
-            `INSERT INTO uploaded_files_page(file_id, filename, owner, work_detail, uploaded_at, client_ip, fullfile_path, folder_timestamp, page_number, similarity_status) 
-             VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-            [savedFile.id, originalFilename, owner, workDetail, savedFile.uploaded_at, clientIp, fullFilePath, folderTimestamp, 1, 'No']
+            `INSERT INTO uploaded_files_page(
+              file_id, 
+              filename, 
+              owner, 
+              work_detail, 
+              uploaded_at, 
+              client_ip, 
+              fullfile_path, 
+              folder_timestamp, 
+              page_number, 
+              similarity_status
+             ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              savedFile.id,           // $1
+              originalFilename,       // $2
+              owner,                 // $3
+              workDetail,            // $4
+              savedFile.uploaded_at, // $5
+              clientIp,              // $6
+              fullFilePath,          // $7
+              folderTimestamp,       // $8
+              1,                     // $9 - page_number
+              'No'                   // $10 - similarity_status
+            ]
           );
         }
 
+        // Create backup copy
         const backupFilePath = path.join(backupDir, path.basename(file.path));
         fs.copyFileSync(fullFilePath, backupFilePath);
         uploadedFilesResult.push({ id: savedFile.id, filename: originalFilename });
@@ -118,7 +165,12 @@ exports.uploadFiles = async (req, res) => {
         if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
       }
     }
-    res.status(201).json({ success: true, message: `Successfully uploaded ${uploadedFilesResult.length} file(s).`, data: uploadedFilesResult });
+    
+    res.status(201).json({ 
+      success: true, 
+      message: `Successfully uploaded ${uploadedFilesResult.length} file(s).`, 
+      data: uploadedFilesResult 
+    });
   } catch (error) {
     console.error('❌ Upload error:', error);
     res.status(500).json({ success: false, message: 'Upload failed: ' + error.message });
@@ -137,7 +189,7 @@ exports.getAllFiles = async (req, res) => {
     if (pn_name) { conditions.push(`uf.pn_name ILIKE $${paramCounter++}`); queryParams.push(`%${pn_name}%`); }
     if (search) { conditions.push(`uf.filename ILIKE $${paramCounter++}`); queryParams.push(`%${search}%`); }
     if (processing_status) { conditions.push(`uf.processing_status = $${paramCounter++}`); queryParams.push(processing_status); }
-    if (quality_check) { conditions.push(`uf.quality_check = $${paramCounter++}`); queryParams.push(quality_check); }
+    if (quality_check) { conditions.push(`uf.quality_checks = $${paramCounter++}`); queryParams.push(quality_check); }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const limitClause = `LIMIT $${paramCounter} OFFSET $${paramCounter + 1}`;
@@ -255,8 +307,8 @@ exports.getFileStatistics = async (req, res) => {
   }
 };
 
-// ✅ New endpoint: Get company statistics
-const getCompanyStatistics = async (req, res) => {
+// ✅ Fixed Company Statistics Function - Properly Exported
+exports.getCompanyStatistics = async (req, res) => {
   try {
     const { limit = 20 } = req.query;
 
@@ -289,6 +341,267 @@ const getCompanyStatistics = async (req, res) => {
   }
 };
 
-exports.getCompanyStatistics = async (req, res) => {
-  res.status(501).json({ message: 'Not implemented yet' });
+// ✅ New Function: Update File Information
+exports.updateFile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      company_name, 
+      pn_name, 
+      work_detail, 
+      processing_status, 
+      quality_checks,
+      ocr_text,
+      receipt_date,
+      total_amount 
+    } = req.body;
+
+    // Build dynamic update query
+    const updateFields = [];
+    const queryParams = [];
+    let paramCounter = 1;
+
+    if (company_name !== undefined) { 
+      updateFields.push(`company_name = $${paramCounter++}`); 
+      queryParams.push(company_name); 
+    }
+    if (pn_name !== undefined) { 
+      updateFields.push(`pn_name = $${paramCounter++}`); 
+      queryParams.push(pn_name); 
+    }
+    if (work_detail !== undefined) { 
+      updateFields.push(`work_detail = $${paramCounter++}`); 
+      queryParams.push(work_detail); 
+    }
+    if (processing_status !== undefined) { 
+      updateFields.push(`processing_status = $${paramCounter++}`); 
+      queryParams.push(processing_status); 
+    }
+    if (quality_checks !== undefined) { 
+      updateFields.push(`quality_checks = $${paramCounter++}`); 
+      queryParams.push(quality_checks); 
+    }
+    if (ocr_text !== undefined) { 
+      updateFields.push(`ocr_text = $${paramCounter++}`); 
+      queryParams.push(ocr_text); 
+    }
+    if (receipt_date !== undefined) { 
+      updateFields.push(`receipt_date = $${paramCounter++}`); 
+      queryParams.push(receipt_date); 
+    }
+    if (total_amount !== undefined) { 
+      updateFields.push(`total_amount = $${paramCounter++}`); 
+      queryParams.push(total_amount); 
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ success: false, message: 'No fields to update' });
+    }
+
+    // Add processed_at timestamp if processing_status is being set to complete
+    if (processing_status === 'complete') {
+      updateFields.push(`processed_at = NOW()`);
+    }
+
+    queryParams.push(id); // Add ID as last parameter
+    const query = `UPDATE uploaded_files SET ${updateFields.join(', ')} WHERE id = $${paramCounter} RETURNING *`;
+
+    const result = await db.query(query, queryParams);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'File not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'File updated successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Error in updateFile:', error);
+    res.status(500).json({ success: false, message: 'Failed to update file: ' + error.message });
+  }
+};
+
+// ✅ New Function: Bulk Update Files
+exports.bulkUpdateFiles = async (req, res) => {
+  try {
+    const { fileIds, updates } = req.body;
+    
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'fileIds array is required' });
+    }
+
+    if (!updates || Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, message: 'updates object is required' });
+    }
+
+    // Build update query
+    const updateFields = [];
+    const queryParams = [];
+    let paramCounter = 1;
+
+    Object.entries(updates).forEach(([key, value]) => {
+      if (['company_name', 'pn_name', 'work_detail', 'processing_status', 'quality_checks', 'ocr_text', 'receipt_date', 'total_amount'].includes(key)) {
+        updateFields.push(`${key} = $${paramCounter++}`);
+        queryParams.push(value);
+      }
+    });
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid fields to update' });
+    }
+
+    // Add processed_at if status is complete
+    if (updates.processing_status === 'complete') {
+      updateFields.push(`processed_at = NOW()`);
+    }
+
+    // Create placeholders for fileIds
+    const idPlaceholders = fileIds.map((_, index) => `$${paramCounter + index}`).join(',');
+    queryParams.push(...fileIds);
+
+    const query = `UPDATE uploaded_files SET ${updateFields.join(', ')} WHERE id IN (${idPlaceholders}) RETURNING *`;
+    const result = await db.query(query, queryParams);
+
+    res.json({
+      success: true,
+      message: `Successfully updated ${result.rows.length} file(s)`,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('❌ Error in bulkUpdateFiles:', error);
+    res.status(500).json({ success: false, message: 'Failed to bulk update files: ' + error.message });
+  }
+};
+
+// ✅ New Function: Search Files with Advanced Filters
+exports.searchFiles = async (req, res) => {
+  try {
+    const { 
+      q,                    // General search term
+      company_name,
+      pn_name,
+      processing_status,
+      quality_checks,
+      date_from,
+      date_to,
+      page = 1,
+      limit = 50,
+      sort_by = 'uploaded_at',
+      sort_order = 'DESC'
+    } = req.query;
+
+    const offset = (page - 1) * limit;
+    const conditions = [];
+    const queryParams = [];
+    let paramCounter = 1;
+
+    // General search across multiple fields
+    if (q) {
+      conditions.push(`(
+        uf.filename ILIKE $${paramCounter} OR 
+        uf.company_name ILIKE $${paramCounter} OR 
+        uf.pn_name ILIKE $${paramCounter} OR
+        uf.ocr_text ILIKE $${paramCounter}
+      )`);
+      queryParams.push(`%${q}%`);
+      paramCounter++;
+    }
+
+    // Specific field filters
+    if (company_name) { 
+      conditions.push(`uf.company_name ILIKE $${paramCounter++}`); 
+      queryParams.push(`%${company_name}%`); 
+    }
+    if (pn_name) { 
+      conditions.push(`uf.pn_name ILIKE $${paramCounter++}`); 
+      queryParams.push(`%${pn_name}%`); 
+    }
+    if (processing_status) { 
+      conditions.push(`uf.processing_status = $${paramCounter++}`); 
+      queryParams.push(processing_status); 
+    }
+    if (quality_checks) { 
+      conditions.push(`uf.quality_checks = $${paramCounter++}`); 
+      queryParams.push(quality_checks); 
+    }
+
+    // Date range filters
+    if (date_from) {
+      conditions.push(`uf.uploaded_at >= $${paramCounter++}`);
+      queryParams.push(date_from);
+    }
+    if (date_to) {
+      conditions.push(`uf.uploaded_at <= $${paramCounter++}`);
+      queryParams.push(date_to + ' 23:59:59'); // Include full day
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    
+    // Validate sort parameters
+    const allowedSortFields = ['id', 'filename', 'company_name', 'pn_name', 'uploaded_at', 'processing_status'];
+    const sortField = allowedSortFields.includes(sort_by) ? sort_by : 'uploaded_at';
+    const sortDirection = sort_order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    
+    const orderClause = `ORDER BY uf.${sortField} ${sortDirection}`;
+    const limitClause = `LIMIT $${paramCounter} OFFSET $${paramCounter + 1}`;
+    queryParams.push(parseInt(limit), offset);
+
+    // Main query
+    const query = `SELECT * FROM uploaded_files AS uf ${whereClause} ${orderClause} ${limitClause}`;
+    const result = await db.query(query, queryParams);
+
+    // Count query
+    const countQuery = `SELECT COUNT(*) FROM uploaded_files AS uf ${whereClause}`;
+    const countParams = queryParams.slice(0, queryParams.length - 2);
+    const countResult = await db.query(countQuery, countParams);
+    const totalCount = parseInt(countResult.rows[0].count, 10);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: { 
+        page: parseInt(page, 10), 
+        limit: parseInt(limit, 10), 
+        total: totalCount, 
+        pages: Math.ceil(totalCount / limit) 
+      },
+      filters: { q, company_name, pn_name, processing_status, quality_checks, date_from, date_to },
+      sort: { sort_by: sortField, sort_order: sortDirection }
+    });
+  } catch (error) {
+    console.error('❌ Error in searchFiles:', error);
+    res.status(500).json({ success: false, message: 'Failed to search files: ' + error.message });
+  }
+};
+
+// ✅ New Function: Health Check
+exports.healthCheck = async (req, res) => {
+  try {
+    // Test database connection
+    await db.query('SELECT 1');
+    
+    // Get basic system info
+    const dbResult = await db.query('SELECT COUNT(*) as total_files FROM uploaded_files');
+    const totalFiles = parseInt(dbResult.rows[0].total_files, 10);
+    
+    res.json({
+      success: true,
+      message: 'API is healthy',
+      timestamp: new Date().toISOString(),
+      database: 'connected',
+      total_files: totalFiles,
+      uptime: process.uptime(),
+      memory: process.memoryUsage()
+    });
+  } catch (error) {
+    console.error('❌ Health check failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Health check failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 };
