@@ -5,3 +5,6 @@ ocr-frontend/
 (Back up)
 uploads
 .env
+backup/docker
+.dockerignore
+D:\github\n8n\n8n\backup

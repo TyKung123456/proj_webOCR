@@ -1,7 +1,7 @@
 // src/routes/fileRoutes.js
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
+const multer = require('multer'); // <<< MODIFIED: แก้ไขบรรทัดนี้ให้ถูกต้อง
 const {
   upload,
   uploadFiles,
@@ -10,7 +10,9 @@ const {
   viewFile,
   downloadFile,
   deleteFile,
-  getFileStatistics
+  getFileStatistics,
+  getCompanyStatistics,
+  updateFileDetails
 } = require('../controllers/fileController');
 
 // ✅ Health check
@@ -31,8 +33,16 @@ router.get('/files', getAllFiles);
 // ✅ Get file statistics
 router.get('/files/statistics', getFileStatistics);
 
+// ✅ Get company statistics
+router.get('/files/statistics/company', getCompanyStatistics);
+
+
 // ✅ Get file by ID
 router.get('/files/:id', getFileById);
+
+// ✅ Update file details
+router.patch('/files/:id/details', updateFileDetails);
+
 
 // ✅ View file content (for preview) - Important for PDF viewing
 router.get('/files/:id/view', viewFile);
