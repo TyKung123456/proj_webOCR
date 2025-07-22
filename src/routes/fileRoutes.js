@@ -1,4 +1,4 @@
-// src/routes/fileRoutes.js - Updated with 200 files limit
+// src/routes/fileRoutes.js
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -65,7 +65,7 @@ router.use((error, req, res, next) => {
       });
     }
   }
-  
+
   if (error.message.includes('Invalid file type')) {
     return res.status(400).json({
       success: false,
@@ -80,4 +80,6 @@ router.use((error, req, res, next) => {
   });
 });
 
+
+// ✅ FIX: Export the router directly
 module.exports = router;
