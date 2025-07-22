@@ -1,6 +1,6 @@
-// src/services/ApiService.js - Original version without layout detection
-const API_BASE_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:3001/api' 
+// src/services/ApiService.js
+const API_BASE_URL = window.location.hostname === 'localhost'
+  ? 'http://localhost:3001/api'
   : 'http://localhost:3001/api';
 
 class ApiService {
@@ -48,15 +48,15 @@ class ApiService {
       console.log(`📤 Uploading ${filesWithParsedData.length} files with parsed data...`);
 
       const formData = new FormData();
-      
+
       // Handle different input formats
       if (Array.isArray(filesWithParsedData) && filesWithParsedData[0]?.file) {
         // New format with parsed data: [{ file, company_name, pn_name, work_detail }]
         console.log('🔄 Processing files with parsed data format...');
-        
+
         filesWithParsedData.forEach((fileData, index) => {
           const file = fileData.file;
-          
+
           console.log(`📋 Processing file ${index + 1}:`, {
             name: file?.name || 'undefined',
             type: file?.type || 'undefined',
@@ -64,33 +64,33 @@ class ApiService {
             company: fileData.company_name,
             pn: fileData.pn_name
           });
-          
+
           // Validate file before upload
           this.validateFile(file);
-          
+
           // Add file to FormData
           formData.append('files', file);
-          
+
           // Add parsed data for each file
           formData.append(`company_name_${index}`, fileData.company_name || '');
           formData.append(`pn_name_${index}`, fileData.pn_name || '');
-          
+
           console.log(`📎 Added file ${index}: ${file.name}`);
           console.log(`🏢 Company: ${fileData.company_name}`);
           console.log(`🔖 P/N: ${fileData.pn_name}`);
         });
-        
+
         // Add work detail from parameter or first file's work_detail
         const workDetailToUse = workDetail || filesWithParsedData[0]?.work_detail || '';
         if (workDetailToUse.trim()) {
           formData.append('workDetail', workDetailToUse.trim());
         }
-        
+
       } else {
         // Legacy format: direct file array (for backward compatibility)
         console.log('🔄 Processing files in legacy format...');
         const files = Array.isArray(filesWithParsedData) ? filesWithParsedData : [filesWithParsedData];
-        
+
         // Validate files before upload
         this.validateFiles(files);
 
@@ -100,9 +100,9 @@ class ApiService {
             type: file?.type || 'undefined',
             size: file?.size || 'undefined'
           });
-          
+
           formData.append('files', file);
-          
+
           // Extract company_name and pn_name if available in file object
           if (file.company_name !== undefined) {
             formData.append(`company_name_${index}`, file.company_name || '');
@@ -110,7 +110,7 @@ class ApiService {
           if (file.pn_name !== undefined) {
             formData.append(`pn_name_${index}`, file.pn_name || '');
           }
-          
+
           console.log(`📎 Added file ${index}: ${file.name} (${file.size} bytes)`);
         });
 
@@ -151,13 +151,13 @@ class ApiService {
   // ✅ Get all files with pagination and search by company/pn
   static async getFiles(params = {}) {
     const queryParams = new URLSearchParams();
-    
+
     // Add pagination parameters
     if (params.page) queryParams.append('page', params.page);
     if (params.limit) queryParams.append('limit', params.limit);
     if (params.status) queryParams.append('status', params.status);
     if (params.type) queryParams.append('type', params.type);
-    
+
     // Add search parameters for company_name and pn_name
     if (params.company_name) queryParams.append('company_name', params.company_name);
     if (params.pn_name) queryParams.append('pn_name', params.pn_name);
@@ -198,6 +198,14 @@ class ApiService {
     return this.request('/files/statistics/companies');
   }
 
+  // ✨ ADDED: ฟังก์ชันสำหรับอัปเดต (เซฟ) ข้อมูลไฟล์ที่ถูกแก้ไข
+  static async updateFileDetails(id, dataToUpdate) {
+    return this.request(`/files/${id}/details`, {
+      method: 'PATCH',
+      body: JSON.stringify(dataToUpdate),
+    });
+  }
+
   // ✅ Delete file
   static async deleteFile(id) {
     return this.request(`/files/${id}`, {
@@ -219,7 +227,7 @@ class ApiService {
   static async downloadFileBlob(id) {
     try {
       const response = await fetch(`${API_BASE_URL}/files/${id}/download`);
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Download failed');
@@ -236,23 +244,23 @@ class ApiService {
   static async downloadFile(id, filename) {
     try {
       console.log(`📥 Downloading file: ${filename}`);
-      
+
       const blob = await this.downloadFileBlob(id);
-      
+
       // Create download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = filename;
-      
+
       // Trigger download
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       // Cleanup
       window.URL.revokeObjectURL(url);
-      
+
       console.log(`✅ Download completed: ${filename}`);
       return true;
 
@@ -268,7 +276,7 @@ class ApiService {
       const response = await fetch(`${API_BASE_URL}/files/${id}/view`, {
         method: 'HEAD' // Only check headers, don't download content
       });
-      
+
       return response.ok;
     } catch (error) {
       console.error('❌ File access check failed:', error);
@@ -324,7 +332,7 @@ class ApiService {
 
     const maxSize = 50 * 1024 * 1024; // 50MB
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-    
+
     if (file.size > maxSize) {
       throw new Error(`File "${file.name}" is too large. Maximum size is 50MB.`);
     }
