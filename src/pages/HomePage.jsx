@@ -54,12 +54,11 @@ const FileCard = ({ file, isSelected, onSelect, onCardClick, isSelectionMode }) 
   return (
     <div
       onClick={() => isSelectionMode ? onSelect(file.id) : onCardClick(file)}
-      // <<< MODIFIED: เพิ่ม animation และปรับเงาให้ "ว้าว" ขึ้น >>>
       className={`relative border rounded-2xl shadow-sm transition-all duration-300 ease-in-out cursor-pointer 
         ${isSelectionMode ? 'hover:shadow-md' : 'hover:shadow-xl hover:-translate-y-1'} 
         ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-500/50' : ''}
-        {/* <<< MODIFIED: ปรับสีแดงให้เข้มขึ้น >>> */}
-        ${isFail ? 'bg-red-200/50 dark:bg-red-900/50 border-red-300 dark:border-red-800/60' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
+        {/* <<< ✅ MODIFIED: ปรับสีแดงให้เข้มและชัดเจนขึ้น >>> */}
+        ${isFail ? 'bg-red-100 dark:bg-red-900/60 border-red-300 dark:border-red-800/60' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
     >
       {isSelectionMode && (
         <div className="absolute top-3 left-3" onClick={e => e.stopPropagation()}>
@@ -68,7 +67,7 @@ const FileCard = ({ file, isSelected, onSelect, onCardClick, isSelectionMode }) 
       )}
       <div className="p-5">
         <div className="flex items-start gap-4">
-          <div className={`p-3 rounded-lg mt-1 ${isSelectionMode ? 'ml-8' : ''} ${isFail ? 'bg-red-100 dark:bg-red-500/10' : 'bg-indigo-50 dark:bg-indigo-500/10'}`}>
+          <div className={`p-3 rounded-lg mt-1 ${isSelectionMode ? 'ml-8' : ''} ${isFail ? 'bg-red-200 dark:bg-red-500/20' : 'bg-indigo-50 dark:bg-indigo-500/10'}`}>
             {isFail ? <AlertTriangle className="text-red-600 dark:text-red-400" size={24} /> : <FileText className="text-indigo-600 dark:text-indigo-400" size={24} />}
           </div>
           <div className="flex-1 min-w-0">
@@ -135,13 +134,56 @@ const HomePage = ({
   useEffect(() => { setCurrentTablePage(1); }, [filterText, rowsPerPage, sortConfig, filterProcessingStatus, filterQualityCheck, viewMode]);
   useEffect(() => { setSelectedIds(new Set()); }, [filteredFiles, viewMode, isSelectionMode]);
 
+  // <<< ✅ MODIFIED: ทำให้ Export CSV ใช้งานได้จริง >>>
   const handleExportCSV = () => {
     if (filteredFiles.length === 0) {
       toast.warn("No data available to export.");
       return;
     }
-    toast.info(`Exporting ${filteredFiles.length} records... (CSV logic to be implemented)`);
-    console.log("Exporting to CSV:", filteredFiles);
+
+    const headers = [
+      'ID', 'File Name', 'Company', 'PN Name', 'Uploaded At',
+      'Processing Status', 'Similarity Status', 'Quality Check Status'
+    ];
+
+    const formatCSVField = (data) => {
+      if (data === null || data === undefined) return '';
+      let field = String(data);
+      if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+        field = `"${field.replace(/"/g, '""')}"`;
+      }
+      return field;
+    };
+
+    const csvRows = filteredFiles.map(file => [
+      file.id,
+      formatCSVField(file.filename),
+      formatCSVField(file.company_name),
+      formatCSVField(file.pn_name),
+      new Date(file.uploadedAt || file.uploaded_at || Date.now()).toISOString(),
+      formatCSVField(file.processing_status),
+      formatCSVField(file.similarity_status),
+      formatCSVField(file.quality_check_status)
+    ].join(','));
+
+    const csvContent = [headers.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      const timestamp = new Date().toISOString().slice(0, 10);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `file_export_${timestamp}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success(`Successfully exported ${filteredFiles.length} records.`);
+    } else {
+      toast.error("CSV export is not supported by your browser.");
+    }
   };
 
   const handleToggleSelectionMode = () => { setIsSelectionMode(prev => !prev); };
@@ -193,7 +235,6 @@ const HomePage = ({
                   <button onClick={handleExportCSV} disabled={filteredFiles.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-800 dark:text-blue-200 dark:hover:bg-blue-700 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105">
                     <Download size={16} /> Export CSV
                   </button>
-                  {/* <<< MODIFIED: เปลี่ยนข้อความปุ่ม >>> */}
                   <button onClick={() => setShowReportModal(true)} disabled={files.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-800 dark:text-green-200 dark:hover:bg-green-700 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105">
                     <LineChart size={16} /> Generate Report
                   </button>
@@ -234,8 +275,8 @@ const HomePage = ({
                         if (isSelected) {
                           rowClass += ' bg-indigo-100 dark:bg-indigo-900/50';
                         } else if (isFail) {
-                          // <<< MODIFIED: ปรับสีแดงให้เข้มขึ้น >>>
-                          rowClass += ' bg-red-200/60 hover:bg-red-200/90 dark:bg-red-900/70 dark:hover:bg-red-900/90';
+                          // <<< ✅ MODIFIED: ปรับสีแดงให้เข้มและชัดเจนขึ้น >>>
+                          rowClass += ' bg-red-100 hover:bg-red-200/60 dark:bg-red-900/60 dark:hover:bg-red-900/80';
                         } else {
                           rowClass += ' hover:bg-slate-50 dark:hover:bg-slate-800 even:bg-slate-50/50 dark:even:bg-slate-800/50';
                         }
