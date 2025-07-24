@@ -34,23 +34,6 @@ const StatusPill = ({ status }) => {
   return <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full font-medium text-xs ${current.bg} ${current.textC}`}><span className={`h-1.5 w-1.5 rounded-full ${current.dot}`}></span>{current.text}</span>;
 };
 
-const QualityCheckStatus = ({ status }) => {
-  const statusMap = {
-    pass: { text: 'Pass', icon: CheckCircle2, color: 'text-green-600 dark:text-green-500' },
-    fail: { text: 'Fail', icon: XCircle, color: 'text-red-600 dark:text-red-500' },
-    default: { text: status || 'Unknown', icon: HelpCircle, color: 'text-slate-500 dark:text-slate-400' }
-  };
-  const current = statusMap[status?.toLowerCase()] || statusMap.default;
-  const Icon = current.icon;
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 font-medium text-sm ${current.color}`}>
-      <Icon size={16} />
-      {current.text}
-    </span>
-  );
-};
-
 const SimilarityStatusPill = ({ status }) => {
   const normalizedStatus = status?.toLowerCase().trim() || 'unknown';
   const statusMap = { 'matched': { text: 'Matched', bg: 'bg-purple-100 dark:bg-purple-800', textC: 'text-purple-800 dark:text-purple-100', dot: 'bg-purple-500' }, 'no match': { text: 'No Match', bg: 'bg-slate-100 dark:bg-slate-800', textC: 'text-slate-700 dark:text-slate-200', dot: 'bg-slate-400' }, 'requires review': { text: 'Review', bg: 'bg-orange-100 dark:bg-orange-800', textC: 'text-orange-800 dark:text-orange-100', dot: 'bg-orange-400' }, 'unknown': { text: 'Unknown', bg: 'bg-gray-100 dark:bg-gray-800', textC: 'text-gray-700 dark:text-gray-200', dot: 'bg-gray-400' } };
@@ -65,31 +48,43 @@ const StatCard = ({ title, value, icon: Icon, color }) => (
   </div>
 );
 
-const FileCard = ({ file, isSelected, onSelect, onCardClick, isSelectionMode }) => (
-  <div
-    onClick={() => isSelectionMode ? onSelect(file.id) : onCardClick(file)}
-    className={`relative bg-white dark:bg-slate-800 border rounded-2xl shadow-sm transition-all duration-200 ease-in-out cursor-pointer ${isSelectionMode ? 'hover:shadow-md' : 'hover:shadow-lg hover:-translate-y-1'} ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-500/50' : 'border-slate-200 dark:border-slate-700'}`}
-  >
-    {isSelectionMode && (
-      <div className="absolute top-3 left-3" onClick={e => e.stopPropagation()}>
-        <input type="checkbox" className="form-checkbox h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:checked:bg-indigo-500" checked={isSelected} onChange={() => onSelect(file.id)} />
-      </div>
-    )}
-    <div className="p-5">
-      <div className="flex items-start gap-4">
-        <div className={`bg-indigo-50 dark:bg-indigo-500/10 p-3 rounded-lg mt-1 ${isSelectionMode ? 'ml-8' : ''}`}>
-          <FileText className="text-indigo-600 dark:text-indigo-400" size={24} />
+const FileCard = ({ file, isSelected, onSelect, onCardClick, isSelectionMode }) => {
+  const isFail = file.quality_check_status?.toLowerCase() === 'fail';
+
+  return (
+    <div
+      onClick={() => isSelectionMode ? onSelect(file.id) : onCardClick(file)}
+      // <<< MODIFIED: เพิ่ม animation และปรับเงาให้ "ว้าว" ขึ้น >>>
+      className={`relative border rounded-2xl shadow-sm transition-all duration-300 ease-in-out cursor-pointer 
+        ${isSelectionMode ? 'hover:shadow-md' : 'hover:shadow-xl hover:-translate-y-1'} 
+        ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-500/50' : ''}
+        {/* <<< MODIFIED: ปรับสีแดงให้เข้มขึ้น >>> */}
+        ${isFail ? 'bg-red-200/50 dark:bg-red-900/50 border-red-300 dark:border-red-800/60' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
+    >
+      {isSelectionMode && (
+        <div className="absolute top-3 left-3" onClick={e => e.stopPropagation()}>
+          <input type="checkbox" className="form-checkbox h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:checked:bg-indigo-500" checked={isSelected} onChange={() => onSelect(file.id)} />
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-slate-800 dark:text-slate-100 truncate" title={file.filename}>{file.filename || 'Unknown'}</p>
-          <p className="text-sm text-slate-400">ID: {file.id}</p>
+      )}
+      <div className="p-5">
+        <div className="flex items-start gap-4">
+          <div className={`p-3 rounded-lg mt-1 ${isSelectionMode ? 'ml-8' : ''} ${isFail ? 'bg-red-100 dark:bg-red-500/10' : 'bg-indigo-50 dark:bg-indigo-500/10'}`}>
+            {isFail ? <AlertTriangle className="text-red-600 dark:text-red-400" size={24} /> : <FileText className="text-indigo-600 dark:text-indigo-400" size={24} />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-slate-800 dark:text-slate-100 truncate" title={file.filename}>{file.filename || 'Unknown'}</p>
+            <p className="text-sm text-slate-400">ID: {file.id}</p>
+          </div>
+        </div>
+        <div className="mt-4 space-y-3 text-sm"><div className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><Building size={16} /><span>{file.company_name || '-'}</span></div><div className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><Fingerprint size={16} /><span>{file.pn_name || '-'}</span></div></div>
+        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+          <StatusPill status={file.processing_status} />
+          <SimilarityStatusPill status={file.similarity_status} />
         </div>
       </div>
-      <div className="mt-4 space-y-3 text-sm"><div className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><Building size={16} /><span>{file.company_name || '-'}</span></div><div className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><Fingerprint size={16} /><span>{file.pn_name || '-'}</span></div></div>
-      <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between"><QualityCheckStatus status={file.quality_check} /><StatusPill status={file.processing_status} /></div>
     </div>
-  </div>
-);
+  );
+};
 
 const HomePage = ({
   files = [], deleteFile, setSelectedFile, setShowReportModal, currentDate, currentTime, currentPage,
@@ -115,7 +110,7 @@ const HomePage = ({
     const searchableContent = [file.id, file.filename, file.company_name, file.pn_name].join(' ').toLowerCase();
     if (filterText && !searchableContent.includes(lowercasedFilter)) return false;
     if (filterProcessingStatus !== 'all' && (file.processing_status || '').toLowerCase() !== filterProcessingStatus) return false;
-    if (filterQualityCheck !== 'all' && (file.quality_check || '').toLowerCase() !== filterQualityCheck) return false;
+    if (filterQualityCheck !== 'all' && (file.quality_check_status || '').toLowerCase() !== filterQualityCheck) return false;
     return true;
   }), [files, filterText, filterProcessingStatus, filterQualityCheck]);
 
@@ -123,7 +118,7 @@ const HomePage = ({
     let sortableItems = [...filteredFiles];
     if (sortConfig.key) {
       sortableItems.sort((a, b) => {
-        const keyMap = { id: ['id'], uploaded_at: ['uploaded_at', 'uploadedAt'], name: ['filename', 'name', 'original_name'], processing_status: ['processing_status'], company_name: ['company_name'], pn_name: ['pn_name'] };
+        const keyMap = { id: ['id'], uploaded_at: ['uploaded_at', 'uploadedAt'], name: ['filename', 'name', 'original_name'], processing_status: ['processing_status'], company_name: ['company_name'], pn_name: ['pn_name'], quality_check_status: ['quality_check_status'] };
         const getValue = (obj, key) => { const pKeys = keyMap[key] || [key]; for (const pKey of pKeys) { if (obj[pKey] !== undefined && obj[pKey] !== null) return obj[pKey]; } return null; };
         const valA = getValue(a, sortConfig.key); const valB = getValue(b, sortConfig.key);
         if (valA === null) return 1; if (valB === null) return -1;
@@ -140,10 +135,16 @@ const HomePage = ({
   useEffect(() => { setCurrentTablePage(1); }, [filterText, rowsPerPage, sortConfig, filterProcessingStatus, filterQualityCheck, viewMode]);
   useEffect(() => { setSelectedIds(new Set()); }, [filteredFiles, viewMode, isSelectionMode]);
 
-  const handleToggleSelectionMode = () => {
-    setIsSelectionMode(prev => !prev);
+  const handleExportCSV = () => {
+    if (filteredFiles.length === 0) {
+      toast.warn("No data available to export.");
+      return;
+    }
+    toast.info(`Exporting ${filteredFiles.length} records... (CSV logic to be implemented)`);
+    console.log("Exporting to CSV:", filteredFiles);
   };
 
+  const handleToggleSelectionMode = () => { setIsSelectionMode(prev => !prev); };
   const handleDeleteConfirm = (fileId) => { toast(({ closeToast }) => <ConfirmToast closeToast={closeToast} onConfirm={() => { deleteFile(fileId); setSelectedIds(prev => { const next = new Set(prev); next.delete(fileId); return next; }); }} message="This action cannot be undone." />, { position: "top-center", autoClose: false, closeOnClick: false, draggable: false, closeButton: false }); };
   const requestSort = (key) => { let direction = 'ascending'; if (sortConfig.key === key && sortConfig.direction === 'ascending') direction = 'descending'; setSortConfig({ key, direction }); };
   const getSortIcon = (key) => { if (sortConfig.key !== key) return null; return sortConfig.direction === 'ascending' ? <ArrowUp className="inline-block ml-1" size={14} /> : <ArrowDown className="inline-block ml-1" size={14} />; };
@@ -153,7 +154,8 @@ const HomePage = ({
 
   const tableHeaders = [
     { label: isSelectionMode ? <input type="checkbox" className="form-checkbox rounded text-indigo-600 focus:ring-indigo-500" onChange={handleSelectAll} checked={paginatedFiles.length > 0 && selectedIds.size === paginatedFiles.length} /> : null, key: 'select', sortable: false },
-    { label: 'ID', key: 'id', sortable: true }, { label: 'File Name', key: 'name', sortable: true }, { label: 'Company', key: 'company_name', sortable: false }, { label: 'PN Name', key: 'pn_name', sortable: false }, { label: 'Quality Check', key: 'quality_check', sortable: false }, { label: 'Upload Date', key: 'uploaded_at', sortable: true }, { label: 'Processing Status', key: 'processing_status', sortable: true }, { label: 'Similarity Status', key: 'similarity_status', sortable: false }, { label: 'Actions', key: 'actions', sortable: false }
+    { label: '', key: 'status_icon', sortable: false },
+    { label: 'ID', key: 'id', sortable: true }, { label: 'File Name', key: 'name', sortable: true }, { label: 'Company', key: 'company_name', sortable: false }, { label: 'PN Name', key: 'pn_name', sortable: false }, { label: 'Upload Date', key: 'uploaded_at', sortable: true }, { label: 'Processing Status', key: 'processing_status', sortable: true }, { label: 'Similarity Status', key: 'similarity_status', sortable: false }, { label: 'Actions', key: 'actions', sortable: false }
   ];
 
   return (
@@ -171,7 +173,7 @@ const HomePage = ({
           <div className="flex items-center gap-4"><button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">{isDarkMode ? <Sun size={20} /> : <Moon size={20} />}</button><div className="text-right"><div className="font-semibold text-slate-700 dark:text-slate-300">{currentDate}</div><div className="text-sm text-slate-500 dark:text-slate-400">{currentTime}</div></div></div>
         </header>
 
-        <main className="flex-1 p-8 space-y-8">
+        <main className="flex-1 p-8 space-y-8 pb-24">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatCard title="Total Files" value={files.length} icon={Files} color={{ bg: 'bg-blue-50 dark:bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400' }} />
             <StatCard title="Files Today" value={files.filter(f => (f.uploaded_at || f.uploadedAt || '').includes(today)).length} icon={CalendarClock} color={{ bg: 'bg-green-50 dark:bg-green-500/10', text: 'text-green-600 dark:text-green-400' }} />
@@ -188,6 +190,14 @@ const HomePage = ({
                   <div className="flex items-center gap-1"><select value={filterQualityCheck} onChange={e => setFilterQualityCheck(e.target.value)} className="px-2 py-1.5 border-0 bg-transparent text-sm font-medium text-slate-600 dark:text-slate-300 focus:ring-0 outline-none"><option value="all">All Quality</option><option value="pass">Pass</option><option value="fail">Fail</option></select></div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button onClick={handleExportCSV} disabled={filteredFiles.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-800 dark:text-blue-200 dark:hover:bg-blue-700 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105">
+                    <Download size={16} /> Export CSV
+                  </button>
+                  {/* <<< MODIFIED: เปลี่ยนข้อความปุ่ม >>> */}
+                  <button onClick={() => setShowReportModal(true)} disabled={files.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-800 dark:text-green-200 dark:hover:bg-green-700 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105">
+                    <LineChart size={16} /> Generate Report
+                  </button>
+                  <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
                   <button onClick={handleToggleSelectionMode} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${isSelectionMode ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600'}`}>
                     {isSelectionMode ? <X size={16} /> : <MousePointerClick size={16} />}
                     {isSelectionMode ? 'Cancel' : 'Select'}
@@ -208,8 +218,8 @@ const HomePage = ({
                     <thead className="bg-slate-50 dark:bg-slate-900/50">
                       <tr className="border-b-2 border-slate-200 dark:border-slate-800">
                         {tableHeaders.map(h => (
-                          <th key={h.key} onClick={h.sortable && h.key !== 'select' ? () => requestSort(h.key) : undefined}
-                            className={`px-3 py-4 font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider ${h.key === 'id' ? 'text-center' : 'text-left'} ${h.sortable && h.key !== 'select' ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700' : 'cursor-default'}`}>
+                          <th key={h.key} onClick={h.sortable && h.key !== 'select' && h.key !== 'status_icon' ? () => requestSort(h.key) : undefined}
+                            className={`px-3 py-4 font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider ${h.key === 'id' ? 'text-center' : 'text-left'} ${h.sortable && h.key !== 'select' && h.key !== 'status_icon' ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700' : 'cursor-default'}`}>
                             {h.label} {h.sortable && getSortIcon(h.key)}
                           </th>
                         ))}
@@ -217,14 +227,30 @@ const HomePage = ({
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                       {paginatedFiles.length > 0 ? (paginatedFiles.map((file) => {
-                        const isSelected = selectedIds.has(file.id); return (
-                          <tr key={file.id} onClick={() => isSelectionMode ? handleSelectOne(file.id) : setSelectedFile(file)} className={`transition-colors cursor-pointer ${isSelected ? 'bg-indigo-100 dark:bg-indigo-900/50' : 'hover:bg-indigo-50/50 dark:hover:bg-indigo-900/30 even:bg-slate-50/50 dark:even:bg-slate-800/50'}`}>
+                        const isSelected = selectedIds.has(file.id);
+                        const isFail = file.quality_check_status?.toLowerCase() === 'fail';
+
+                        let rowClass = 'transition-colors duration-200 cursor-pointer';
+                        if (isSelected) {
+                          rowClass += ' bg-indigo-100 dark:bg-indigo-900/50';
+                        } else if (isFail) {
+                          // <<< MODIFIED: ปรับสีแดงให้เข้มขึ้น >>>
+                          rowClass += ' bg-red-200/60 hover:bg-red-200/90 dark:bg-red-900/70 dark:hover:bg-red-900/90';
+                        } else {
+                          rowClass += ' hover:bg-slate-50 dark:hover:bg-slate-800 even:bg-slate-50/50 dark:even:bg-slate-800/50';
+                        }
+
+                        return (
+                          <tr key={file.id} onClick={() => isSelectionMode ? handleSelectOne(file.id) : setSelectedFile(file)} className={rowClass}>
                             <td className="px-3 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>{isSelectionMode && <input type="checkbox" className="form-checkbox h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:checked:bg-indigo-500" checked={isSelected} onChange={() => handleSelectOne(file.id)} />}</td>
+                            <td className="px-3 py-3 w-8 text-center">
+                              {file.quality_check_status?.toLowerCase() === 'pass' && <CheckCircle2 className="text-green-500 mx-auto" size={18} />}
+                              {file.quality_check_status?.toLowerCase() === 'fail' && <XCircle className="text-red-500 mx-auto" size={18} />}
+                            </td>
                             <td className="px-3 py-3 text-center text-slate-500 dark:text-slate-400 font-mono">{file.id}</td>
                             <td className="px-3 py-3 font-semibold text-slate-800 dark:text-slate-100 break-words">{file.filename || 'Unknown'}</td>
                             <td className="px-3 py-3 text-slate-500 dark:text-slate-400 break-words">{file.company_name || '-'}</td>
                             <td className="px-3 py-3 text-slate-500 dark:text-slate-400 break-words">{file.pn_name || '-'}</td>
-                            <td className="px-3 py-3"><QualityCheckStatus status={file.quality_check} /></td>
                             <td className="px-3 py-3 text-slate-500 dark:text-slate-400">{new Date(file.uploadedAt || file.uploaded_at || Date.now()).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</td>
                             <td className="px-3 py-3 text-center"><StatusPill status={file.processing_status} /></td>
                             <td className="px-3 py-3 text-center"><SimilarityStatusPill status={file.similarity_status} /></td>
@@ -249,7 +275,7 @@ const HomePage = ({
           </div>
         </main>
       </div>
-      <div className="fixed bottom-8 right-8 flex flex-col gap-4 z-40"><button onClick={() => setShowChatModal(true)} title="Chat with AI" className="bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-full shadow-lg transform transition-all hover:scale-110"><MessageSquarePlus size={24} /></button><button onClick={() => setShowUploadModal(true)} title="Upload File" className="bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-full shadow-lg transform transition-all hover:scale-110"><UploadCloud size={24} /></button></div>
+      <div className="fixed bottom-8 right-8 flex flex-row gap-4 z-40"><button onClick={() => setShowChatModal(true)} title="Chat with AI" className="bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-full shadow-lg transform transition-all hover:scale-110"><MessageSquarePlus size={24} /></button><button onClick={() => setShowUploadModal(true)} title="Upload File" className="bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-full shadow-lg transform transition-all hover:scale-110"><UploadCloud size={24} /></button></div>
     </div>
   );
 };
