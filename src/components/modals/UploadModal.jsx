@@ -14,15 +14,15 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
   // การอ่านชื่อไฟล์จากซ้ายไปขวา: ชื่อบริษัท_เลขP/N_เอกสาร
   const parseFileName = (fileName) => {
     console.log(`🔍 Parsing filename: "${fileName}"`);
-    
+
     // Remove file extension
     const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
     console.log(`📝 Name without extension: "${nameWithoutExt}"`);
-    
+
     // Find first underscore (from left to right)
     const firstUnderscoreIndex = nameWithoutExt.indexOf('_');
     console.log(`📍 First underscore position: ${firstUnderscoreIndex}`);
-    
+
     if (firstUnderscoreIndex === -1) {
       // No underscore found, return original name as company_name and empty pn_name
       console.log(`⚠️ No underscore found, using entire name as company_name`);
@@ -32,7 +32,7 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
         parsing_note: 'No underscore found - entire name used as company name'
       };
     }
-    
+
     if (firstUnderscoreIndex === 0) {
       // Underscore at the beginning, invalid format
       console.log(`⚠️ Invalid format: underscore at beginning`);
@@ -42,14 +42,14 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
         parsing_note: 'Invalid format - underscore at beginning'
       };
     }
-    
+
     // Split by first underscore (reading from left to right)
     const company_name = nameWithoutExt.substring(0, firstUnderscoreIndex);
     const pn_name = nameWithoutExt.substring(firstUnderscoreIndex + 1);
-    
+
     console.log(`🏢 Company name: "${company_name}"`);
     console.log(`🔖 P/N name: "${pn_name}"`);
-    
+
     // Validate extracted data
     if (!company_name.trim()) {
       return {
@@ -58,7 +58,7 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
         parsing_note: 'Empty company name - using entire filename'
       };
     }
-    
+
     return {
       company_name: company_name.trim(),
       pn_name: pn_name.trim(),
@@ -108,9 +108,9 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
 
         // Validate file
         ApiService.validateFile(file);
-        
+
         // Check for duplicates
-        const isDuplicate = selectedFiles.some(existing => 
+        const isDuplicate = selectedFiles.some(existing =>
           existing.name === file.name && existing.size === file.size
         );
 
@@ -119,7 +119,7 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
         } else {
           // Parse file name to extract company_name and pn_name
           const { company_name, pn_name, parsing_note } = parseFileName(file.name);
-          
+
           // Create a new File object with additional properties
           // Note: We can't directly modify File object, so we create a wrapper
           const enhancedFile = Object.assign(file, {
@@ -132,16 +132,16 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
               parsing_note
             }
           });
-          
+
           console.log(`✅ Enhanced file ${index}:`, {
             name: enhancedFile.name,
             company_name: enhancedFile.company_name,
             pn_name: enhancedFile.pn_name,
             isFile: enhancedFile instanceof File
           });
-          
+
           validFiles.push(enhancedFile);
-          
+
           console.log(`📝 Parsed file "${file.name}":`, {
             company_name,
             pn_name,
@@ -316,11 +316,10 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
 
             {/* Drop Zone */}
             <div
-              className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 cursor-pointer ${
-                isDragOver
+              className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 cursor-pointer ${isDragOver
                   ? 'border-blue-500 bg-blue-50 scale-105'
                   : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
-              }`}
+                }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -463,12 +462,12 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
         <div className="border-t border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-500">
-              {selectedFiles.length > 0 
+              {selectedFiles.length > 0
                 ? `Ready to upload ${selectedFiles.length} file(s)`
                 : 'No files selected'
               }
             </div>
-            
+
             <div className="flex space-x-4">
               <button
                 onClick={onClose}
@@ -477,15 +476,14 @@ const UploadModal = ({ onClose, onUploadSuccess }) => {
               >
                 Cancel
               </button>
-              
+
               <button
                 onClick={handleUpload}
                 disabled={selectedFiles.length === 0 || isUploading}
-                className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
-                  selectedFiles.length === 0 || isUploading
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${selectedFiles.length === 0 || isUploading
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-blue-500 hover:bg-blue-600 text-white transform hover:scale-105'
-                }`}
+                  }`}
               >
                 {isUploading ? (
                   <div className="flex items-center space-x-2">

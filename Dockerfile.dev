@@ -1,0 +1,19 @@
+# Dockerfile.dev
+FROM node:20-alpine
+
+# ติด tini ให้จัดการสัญญาณ และ bash สำหรับสคริปต์เล็ก ๆ
+RUN apk add --no-cache bash tini
+
+WORKDIR /app
+ENV NODE_ENV=development
+
+# เตรียม entrypoint เพื่อติดตั้ง dependencies อัตโนมัติเมื่อ container เริ่ม
+# (จะเลือกใช้ npm/pnpm/yarn ตาม lockfile ที่พบ)
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# ใช้ tini เป็น init process แล้วค่อยไปที่ entrypoint เรา
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
+
+# คำสั่งจริง ๆ จะถูกส่งมาจาก docker-compose (npm run dev / npm run dev-server)
+CMD ["node", "-v"]

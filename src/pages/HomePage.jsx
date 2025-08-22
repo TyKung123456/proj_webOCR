@@ -96,15 +96,15 @@ const HomePage = ({
     // Check localStorage first, then system preference
     const savedMode = localStorage.getItem('darkMode');
     let initialDarkMode = false;
-    
+
     if (savedMode !== null) {
       initialDarkMode = JSON.parse(savedMode);
     } else {
       initialDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
     }
-    
+
     setIsDarkMode(initialDarkMode);
-    
+
     // Apply initial theme
     if (initialDarkMode) {
       document.documentElement.classList.add('dark');
@@ -250,19 +250,18 @@ const HomePage = ({
         </div>
         <nav className="flex-1 p-4 space-y-2">
           {[
-            { name: 'Home', icon: LayoutDashboard, page: 'home' }, 
-            { name: 'Detection', icon: Search, page: 'groups' }, 
+            { name: 'Home', icon: LayoutDashboard, page: 'home' },
+            { name: 'Detection', icon: Search, page: 'groups' },
             { name: 'Analytics', icon: BarChart2, page: 'dashboard' }
           ].map(item => (
-            <button 
-              key={item.name} 
-              onClick={() => { setCurrentPage(item.page); setSidebarOpen(false); }} 
-              title={sidebarCollapsed ? item.name : ''} 
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                currentPage === item.page 
-                  ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold' 
-                  : 'hover:bg-slate-100 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
-              } ${sidebarCollapsed && 'justify-center'}`}
+            <button
+              key={item.name}
+              onClick={() => { setCurrentPage(item.page); setSidebarOpen(false); }}
+              title={sidebarCollapsed ? item.name : ''}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${currentPage === item.page
+                ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold'
+                : 'hover:bg-slate-100 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
+                } ${sidebarCollapsed && 'justify-center'}`}
             >
               <item.icon size={20} />
               {!sidebarCollapsed && <span>{item.name}</span>}
@@ -286,8 +285,8 @@ const HomePage = ({
           </div>
           <div className="flex items-center gap-4">
             {/* ✅ FIXED: Dark mode toggle button */}
-            <button 
-              onClick={toggleDarkMode} 
+            <button
+              onClick={toggleDarkMode}
               className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             >
@@ -366,8 +365,15 @@ const HomePage = ({
               <div className="p-4 md:p-6">
                 {viewMode === 'grid' ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-                    {paginatedFiles.length > 0 ? paginatedFiles.map(file => (
-                      <FileCard key={file.id} file={file} isSelected={selectedIds.has(file.id)} onSelect={handleSelectOne} onCardClick={setSelectedFile} isSelectionMode={isSelectionMode} />
+                    {paginatedFiles.length > 0 ? paginatedFiles.map((file, index) => (
+                      <FileCard
+                        key={file.id || `file-${index}`}
+                        file={file}
+                        isSelected={selectedIds.has(file.id)}
+                        onSelect={handleSelectOne}
+                        onCardClick={setSelectedFile}
+                        isSelectionMode={isSelectionMode}
+                      />
                     )) : (
                       <div className="col-span-full text-center py-16 text-slate-500 dark:text-slate-400">
                         <FolderOpen className="mx-auto text-slate-400 dark:text-slate-500" size={48} />
@@ -390,7 +396,7 @@ const HomePage = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                        {paginatedFiles.length > 0 ? (paginatedFiles.map((file) => {
+                        {paginatedFiles.length > 0 ? (paginatedFiles.map((file, index) => {
                           const isSelected = selectedIds.has(file.id);
                           const isFail = file.quality_check_status?.toLowerCase() === 'fail';
 
@@ -404,7 +410,11 @@ const HomePage = ({
                           }
 
                           return (
-                            <tr key={file.id} onClick={() => isSelectionMode ? handleSelectOne(file.id) : setSelectedFile(file)} className={rowClass}>
+                            <tr
+                              key={file.id || `row-${index}`}
+                              onClick={() => isSelectionMode ? handleSelectOne(file.id) : setSelectedFile(file)}
+                              className={rowClass}
+                            >
                               <td className="px-3 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
                                 {isSelectionMode && <input type="checkbox" className="form-checkbox h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:checked:bg-indigo-500" checked={isSelected} onChange={() => handleSelectOne(file.id)} />}
                               </td>
