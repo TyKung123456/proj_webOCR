@@ -4,20 +4,47 @@ require('dotenv').config();
 
 console.log('🔄 Initializing database connection with Thai support...');
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5433,
-  database: process.env.DB_NAME || 'n8n',
-  user: process.env.DB_USER || 'admin',
-  password: process.env.DB_PASSWORD || 'P@ssw0rd',
+/** ✅ อ่าน ENV ได้ทั้งสองชุด + ค่าเริ่มต้นสำหรับ Docker network */
+const DB_HOST =
+  process.env.DB_HOST ||
+  process.env.DB_POSTGRESDB_HOST ||
+  'postgres';     // << ชื่อ service ใน docker-compose
 
+const DB_PORT = parseInt(
+  process.env.DB_PORT ||
+    process.env.DB_POSTGRESDB_PORT ||
+    '5432',       // << พอร์ตภายในคอนเทนเนอร์ Postgres
+  10
+);
+
+const DB_NAME =
+  process.env.DB_NAME ||
+  process.env.DB_POSTGRESDB_DATABASE ||
+  'n8n';
+
+const DB_USER =
+  process.env.DB_USER ||
+  process.env.DB_POSTGRESDB_USER ||
+  'admin';
+
+const DB_PASSWORD =
+  process.env.DB_PASSWORD ||
+  process.env.DB_POSTGRESDB_PASSWORD ||
+  'P@ssw0rd';
+
+const pool = new Pool({
+  host: DB_HOST,
+  port: DB_PORT,
+  database: DB_NAME,
+  user: DB_USER,
+  password: DB_PASSWORD,
   max: 10,
   idleTimeoutMillis: 30000,
-
-  // pg client doesn't officially support charset here, but setting client_encoding on connect is enough
-  // charset: 'utf8',  // ไม่จำเป็นต้องใส่ใน pool config
-  // client_encoding: 'UTF8'
+  ssl: false,
 });
+
+// log ค่าที่ใช้จริง (ลบได้ใน prod)
+console.log('[DB CONFIG]', { host: DB_HOST, port: DB_PORT, database: DB_NAME, user: DB_USER });
 
 pool.on('connect', async (client) => {
   try {
@@ -37,13 +64,11 @@ pool.on('connect', async (client) => {
   }
 });
 
-pool.on('error', (err, client) => {
+pool.on('error', (err) => {
   console.error('❌ Unexpected error on idle client:', err);
 });
 
 const query = async (text, params) => {
-  const start = Date.now();
-
   try {
     if (process.env.NODE_ENV === 'development' && params) {
       params.forEach((param, index) => {
@@ -52,9 +77,7 @@ const query = async (text, params) => {
         }
       });
     }
-
-    const res = await pool.query(text, params);
-    return res;
+    return await pool.query(text, params);
   } catch (error) {
     if (error.message.includes('encoding') || error.message.includes('character')) {
       console.error('🇹🇭 Possible Thai encoding issue detected');
@@ -110,9 +133,7 @@ const healthCheck = async () => {
     `);
 
     console.log('📋 Available tables:');
-    tableCheck.rows.forEach(row => {
-      console.log(`   - ${row.table_name} ✅`);
-    });
+    tableCheck.rows.forEach(row => console.log(`   - ${row.table_name} ✅`));
 
     if (tableCheck.rows.length < 2) {
       console.warn('⚠️ Warning: Some required tables are missing');
@@ -151,7 +172,6 @@ const initializeDatabase = async () => {
       console.error('❌ Database initialization failed');
       throw new Error(healthResult.error);
     }
-
     return healthResult;
 
   } catch (error) {
@@ -170,7 +190,6 @@ const closeDatabase = async () => {
   }
 };
 
-// Export all needed functions
 module.exports = {
   query,
   pool,
@@ -180,6 +199,5 @@ module.exports = {
   addUploadedFile,
 };
 
-// Handle termination signals
 process.on('SIGINT', closeDatabase);
 process.on('SIGTERM', closeDatabase);

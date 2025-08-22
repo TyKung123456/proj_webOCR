@@ -14,12 +14,17 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: P@ssw0rd
     ports:
-      - "5433:5432"
+      - "5433:5432"   # host:container (ภายใน network ใช้ 5432 เสมอ)
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d
     networks:
       - ocr_dev_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d n8n -h localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   # Backend Development (Express.js)
   backend-dev:
@@ -32,41 +37,40 @@ services:
       NODE_ENV: development
       PORT: 3001
       API_PREFIX: /api
-      
-      # Database
-      DB_TYPE: postgresdb
-      DB_POSTGRESDB_HOST: postgres
-      DB_POSTGRESDB_PORT: 5433
-      DB_POSTGRESDB_DATABASE: n8n
-      DB_POSTGRESDB_USER: admin
-      DB_POSTGRESDB_PASSWORD: P@ssw0rd
-      
+
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: n8n
+      DB_USER: admin
+      DB_PASSWORD: P@ssw0rd
+
       # File uploads
       UPLOAD_DIR: uploads
       MAX_FILE_SIZE: 52428800
       ALLOWED_FILE_TYPES: pdf,jpg,jpeg,png
       MAX_FILES_PER_UPLOAD: 1000
-      
+
       # OCR Services
       TYPHOON_API_KEY: sk-k3P9pmjvgqhv9Xb8YzsKiVhczsZP1irSKAswUP7jWrdvVlxm
       TYPHOON_OCR_URL: https://api.opentyphoon.ai/v1/ocr
+      # ถ้ามี FastAPI แยกเป็นคอนเทนเนอร์ ให้ชี้เป็นชื่อ service แทน localhost
       FASTAPI_OCR_URL: http://localhost:8001
-      
+
       # AI Configuration
       OLLAMA_BASE_URL: http://ollama:11434
-      
+
       CORS_ORIGIN: http://localhost:5173,http://127.0.0.1:5173
     ports:
       - "3001:3001"
       - "9229:9229"  # Node.js debugger
     volumes:
-      # Mount the entire project for hot reload
       - .:/app
-      - /app/node_modules
+      - /app/node_modules              # ป้องกัน node_modules บนคอนเทนเนอร์ถูกทับ
       - uploads_dev_data:/app/uploads
       - ./logs:/app/logs
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - ocr_dev_network
     command: npm run dev-server
@@ -81,29 +85,29 @@ services:
     environment:
       # Vite development server
       VITE_API_URL: http://localhost:3001/api
-      
+
       # AI Configuration (for Vite)
       VITE_AI_PROVIDER: mock
       VITE_LOCAL_AI_URL: http://localhost:7869
       VITE_LOCAL_MODEL: qwen3:0.6b
-      VITE_ENABLE_AI_CHAT: true
-      VITE_ENABLE_FILE_ANALYSIS: true
-      VITE_DEBUG_AI: true
-      
+      VITE_ENABLE_AI_CHAT: "true"
+      VITE_ENABLE_FILE_ANALYSIS: "true"
+      VITE_DEBUG_AI: "true"
+
       # Vite HMR
-      CHOKIDAR_USEPOLLING: true
+      CHOKIDAR_USEPOLLING: "true"
       HMR_PORT: 5173
+      HOST: 0.0.0.0
     ports:
       - "5173:5173"  # Vite dev server port
     volumes:
-      # Mount source files for hot reload
       - .:/app
-      - /app/node_modules
+      - /app/node_modules              # ป้องกัน node_modules บนคอนเทนเนอร์ถูกทับ
     depends_on:
       - backend-dev
     networks:
       - ocr_dev_network
-    command: npm run dev
+    command: sh -c "npm run dev -- --host 0.0.0.0 --port 5173"
 
   # Local AI (Ollama) - Optional
   ollama:
@@ -120,31 +124,12 @@ services:
       - OLLAMA_HOST=0.0.0.0
     profiles:
       - ai
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "curl -sf http://localhost:11434/api/tags >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
-  # Redis for caching (optional)
-  redis-dev:
-    image: redis:7-alpine
-    container_name: ocr_redis_dev
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    networks:
-      - ocr_dev_network
-    profiles:
-      - cache
-
-  # Mailhog for email testing
-  mailhog:
-    image: mailhog/mailhog
-    container_name: ocr_mailhog
-    restart: unless-stopped
-    ports:
-      - "1025:1025"  # SMTP port
-      - "8025:8025"  # Web UI port
-    networks:
-      - ocr_dev_network
-    profiles:
-      - email
 
 volumes:
   postgres_dev_data:
