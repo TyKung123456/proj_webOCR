@@ -22,7 +22,7 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: P@ssw0rd
     ports:
-      - "5433:5432"
+      - "5433:5432"   # host:container (ภายใน network ใช้ 5432 เสมอ)
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d
@@ -59,7 +59,7 @@ services:
       - "9229:9229"
     volumes:
       - .:/app
-      - /app/node_modules
+      - /app/node_modules              # ป้องกัน node_modules บนคอนเทนเนอร์ถูกทับ
       - uploads_dev_data:/app/uploads
       - ./logs:/app/logs
     depends_on:

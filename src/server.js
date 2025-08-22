@@ -13,8 +13,28 @@ const fileRoutes = require('./routes/fileRoutes');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }));
+/* ✅ CORS: แปลง ENV ให้เป็น array แล้ว "เลือก" origin ที่ร้องขอ */
+const whitelist = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin(origin, callback) {
+    // อนุญาตกรณีไม่มี origin (curl/health-check)
+    if (!origin) return callback(null, true);
+    if (whitelist.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Disposition'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // ✅ รองรับ preflight
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -23,6 +43,10 @@ const uploadsDir = path.join(__dirname, process.env.UPLOAD_DIR || '../uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir));
 
+// Health endpoints (คุณล็อกไว้ใน console แล้ว แต่ยังไม่มี route)
+app.get('/api/health', (req, res) => res.json({ ok: true }));
+app.get('/api/health/thai', (req, res) => res.json({ สถานะ: 'ปกติ' }));
+
 // API route for file handling
 app.use('/api', fileRoutes);
 
@@ -30,6 +54,9 @@ app.use('/api', fileRoutes);
 const OLLAMA_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:7869';
 const ollama = new Ollama({ host: OLLAMA_URL });
 
+/* 🔎 หมายเหตุ ENV DB:
+   ใน compose คุณใช้ DB_POSTGRESDB_HOST/PORT/... แต่ในโค้ดใช้ DB_HOST/DB_PORT/...
+   ควรปรับให้ตรงกันด้านใดด้านหนึ่ง (ดูคำแนะนำด้านล่าง) */
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5433'),
@@ -109,7 +136,7 @@ app.post('/api/generate-chart', async (req, res) => {
   }
 });
 
-// ====== ✅ Label Studio Integration ======
+// ====== Label Studio Integration ======
 app.post('/api/send-to-labelstudio', async (req, res) => {
   const { fileUrl, fileName } = req.body;
   if (!fileUrl || !fileName) return res.status(400).json({ error: 'fileUrl and fileName are required' });
@@ -117,12 +144,8 @@ app.post('/api/send-to-labelstudio', async (req, res) => {
   try {
     const response = await axios.post(
       `${process.env.LABEL_STUDIO_URL || 'http://localhost:8080'}/api/projects/1/import`,
-      [
-        { data: { image: fileUrl }, meta: { filename: fileName } }
-      ],
-      {
-        headers: { Authorization: `Token ${process.env.LABEL_STUDIO_TOKEN}` }
-      }
+      [{ data: { image: fileUrl }, meta: { filename: fileName } }],
+      { headers: { Authorization: `Token ${process.env.LABEL_STUDIO_TOKEN}` } }
     );
 
     res.json({ success: true, labelStudioResponse: response.data });
@@ -132,7 +155,7 @@ app.post('/api/send-to-labelstudio', async (req, res) => {
   }
 });
 
-// Root & fallback
+// Fallback
 app.get('/', (req, res) => res.json({ message: 'AI Chart API is running' }));
 app.use('*', (req, res) => res.status(404).json({ message: 'Endpoint not found' }));
 
@@ -142,7 +165,8 @@ app.use((error, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
+/* ✅ ฟังทุกอินเทอร์เฟซในคอนเทนเนอร์ เพื่อให้ Docker map ออก host ได้ */
+app.listen(PORT, '0.0.0.0', () => {
   console.log('================================');
   console.log('🚀 File Upload API Server Started!');
   console.log(`📡 Server: http://localhost:${PORT}`);
