@@ -4,7 +4,7 @@ import React from 'react';
 import {
   LayoutDashboard, Search, BarChart2, Menu, X, ChevronsLeft, ChevronsRight,
   ShieldAlert, AlertTriangle, ShieldQuestion, FileText, ListChecks, CheckCircle,
-  MessageSquarePlus, UploadCloud
+  MessageSquarePlus, UploadCloud, XCircle
 } from 'lucide-react';
 
 
@@ -16,6 +16,7 @@ const GroupsPage = ({
 }) => {
   const safeSuspiciousGroups = suspiciousGroups || [];
   const safeFiles = files || [];
+  const failedFiles = safeFiles.filter(file => (file.quality_check_status || '').toLowerCase() === 'fail');
 
   const getSeverityInfo = (level) => {
     switch (level) {
@@ -81,6 +82,58 @@ const GroupsPage = ({
           <div>
             <h2 className="text-3xl font-bold text-slate-800">Suspicious Groups</h2>
             <p className="mt-1 text-slate-500">Groups of documents identified by the system as having potential anomalies.</p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-500">
+                  <XCircle size={28} />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-red-500 uppercase tracking-wide">Quality Check Insight</p>
+                  <h3 className="text-xl font-bold text-slate-800">Documents requiring immediate review</h3>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-3xl font-bold text-slate-800">{failedFiles.length}</p>
+                <p className="text-sm text-slate-500">file(s) failed QC (X)</p>
+              </div>
+            </div>
+
+            {failedFiles.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">Great news! No documents have been flagged with a cross mark.</p>
+            ) : (
+              <div className="mt-6">
+                <h4 className="text-sm font-semibold text-slate-600 mb-3">Most recent issues</h4>
+                <div className="space-y-3">
+                  {failedFiles.slice(0, 5).map(file => (
+                    <div key={file.id} className="flex items-center justify-between gap-4 border border-slate-100 rounded-xl px-4 py-3 bg-slate-50">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-9 w-9 rounded-full bg-red-100 text-red-500 flex items-center justify-center">
+                          <XCircle size={20} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-800 truncate" title={file.filename || file.original_name || 'Unknown File'}>
+                            {file.filename || file.original_name || 'Unknown File'}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            ID: {file.id} · {(file.company_name || 'No company').toString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-slate-500">
+                        <p>{(file.processing_status || 'Unknown').toString()}</p>
+                        <p>{new Date(file.uploadedAt || file.uploaded_at || Date.now()).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {failedFiles.length > 5 && (
+                  <p className="mt-3 text-xs text-slate-500">Showing 5 of {failedFiles.length} files. Adjust filters to review all.</p>
+                )}
+              </div>
+            )}
           </div>
 
           {safeSuspiciousGroups.length === 0 ? (

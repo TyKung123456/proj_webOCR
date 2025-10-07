@@ -301,43 +301,14 @@ const DashboardPage = ({
   sidebarOpen,
   setSidebarOpen,
   sidebarCollapsed,
-  setSidebarCollapsed
+  setSidebarCollapsed,
+  isDarkMode,
+  themePreference,
+  cycleThemePreference
 }) => {
-  // Dark Mode State
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [showChat, setShowChat] = useState(false);
-
-  useEffect(() => {
-    const savedMode = localStorage.getItem('darkMode');
-    let initialDarkMode = false;
-    
-    if (savedMode !== null) {
-      initialDarkMode = JSON.parse(savedMode);
-    } else {
-      initialDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    
-    setIsDarkMode(initialDarkMode);
-    
-    if (initialDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
-  }, [isDarkMode]);
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(prev => !prev);
-  };
+  const themeLabel = themePreference === 'dark' ? 'Dark' : themePreference === 'light' ? 'Light' : 'System';
+  const ThemeIcon = isDarkMode ? Sun : Moon;
 
   // Real Data Processing
   const safeFiles = files || [];
@@ -457,8 +428,12 @@ const DashboardPage = ({
             <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-200">Analytics Dashboard</h1>
           </div>
           <div className="flex items-center gap-4">
-            <button onClick={toggleDarkMode} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+            <button
+              onClick={cycleThemePreference}
+              className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title={`Theme: ${themeLabel} (tap to change)`}
+            >
+              <ThemeIcon size={20} />
             </button>
             <div className="text-right">
               <div className="font-semibold text-slate-700 dark:text-slate-300">{currentDate}</div>

@@ -17,13 +17,44 @@ const PORT = process.env.PORT || 3001;
 const whitelist = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map(s => s.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .map(origin => (origin !== '*' ? origin.replace(/\/$/, '') : origin));
+
+const hasCorsWhitelist = whitelist.length > 0;
+
+const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const allowOrigin = (allowedOrigin, requestOrigin) => {
+  if (allowedOrigin === '*') return true;
+
+  if (allowedOrigin.includes('*')) {
+    const pattern = allowedOrigin
+      .split('*')
+      .map(segment => escapeRegex(segment))
+      .join('.*');
+    return new RegExp(`^${pattern}$`).test(requestOrigin);
+  }
+
+  try {
+    return new URL(allowedOrigin).origin === requestOrigin;
+  } catch (err) {
+    return allowedOrigin === requestOrigin;
+  }
+};
 
 const corsOptions = {
   origin(origin, callback) {
     // อนุญาตกรณีไม่มี origin (curl/health-check)
     if (!origin) return callback(null, true);
-    if (whitelist.includes(origin)) return callback(null, true);
+
+    const normalizedOrigin = origin.replace(/\/$/, '');
+
+    if (!hasCorsWhitelist) return callback(null, true);
+
+    const isAllowed = whitelist.some(allowed => allowOrigin(allowed, normalizedOrigin));
+    if (isAllowed) return callback(null, true);
+
+    console.warn(`❌ Blocked by CORS whitelist: ${origin}`);
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,

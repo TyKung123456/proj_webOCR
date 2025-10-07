@@ -1,19 +1,28 @@
 // src/config/database.js - Complete with addUploadedFile function and Thai support
+const fs = require('fs');
 const { Pool } = require('pg');
 require('dotenv').config();
 
 console.log('🔄 Initializing database connection with Thai support...');
 
 /** ✅ อ่าน ENV ได้ทั้งสองชุด + ค่าเริ่มต้นสำหรับ Docker network */
+const runningInsideContainer = (() => {
+  try {
+    return fs.existsSync('/.dockerenv');
+  } catch (err) {
+    return false;
+  }
+})();
+
 const DB_HOST =
   process.env.DB_HOST ||
   process.env.DB_POSTGRESDB_HOST ||
-  'postgres';     // << ชื่อ service ใน docker-compose
+  (runningInsideContainer ? 'postgres' : 'localhost');
 
 const DB_PORT = parseInt(
   process.env.DB_PORT ||
     process.env.DB_POSTGRESDB_PORT ||
-    '5432',       // << พอร์ตภายในคอนเทนเนอร์ Postgres
+    '5433',       // << พอร์ตภายในคอนเทนเนอร์ Postgres
   10
 );
 
@@ -38,8 +47,11 @@ const pool = new Pool({
   database: DB_NAME,
   user: DB_USER,
   password: DB_PASSWORD,
-  max: 10,
+  max: 20,
   idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
   ssl: false,
 });
 
@@ -64,26 +76,66 @@ pool.on('connect', async (client) => {
   }
 });
 
-pool.on('error', (err) => {
-  console.error('❌ Unexpected error on idle client:', err);
+pool.on('error', (err, client) => {
+  console.error('❌ Unexpected error on idle client:', err.message);
+  // The pool will automatically try to reconnect
 });
 
-const query = async (text, params) => {
+pool.on('remove', (client) => {
+  console.log('🔌 Client removed from pool');
+});
+
+// Test connection on startup
+(async () => {
   try {
-    if (process.env.NODE_ENV === 'development' && params) {
-      params.forEach((param, index) => {
-        if (typeof param === 'string' && /[\u0E00-\u0E7F]/.test(param)) {
-          console.log(`🇹🇭 Thai parameter [${index}]:`, param);
-        }
-      });
+    const client = await pool.connect();
+    console.log('✅ Initial database connection successful');
+    client.release();
+  } catch (err) {
+    console.error('❌ Initial database connection failed:', err.message);
+  }
+})();
+
+const MAX_DB_RETRIES = parseInt(process.env.DB_MAX_RETRIES || '3', 10);
+const RETRYABLE_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EPIPE', 'PROTOCOL_CONNECTION_LOST', '57P01', '57P02', '57P03']);
+const RETRYABLE_MESSAGES = [/terminat/i, /server closed the connection/i, /lost connection/i, /socket hang up/i];
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const shouldRetry = (error) => {
+  if (!error) return false;
+  if (error.code && RETRYABLE_CODES.has(error.code)) return true;
+  const message = error.message || '';
+  return RETRYABLE_MESSAGES.some(regex => regex.test(message));
+};
+
+const query = async (text, params) => {
+  let attempt = 0;
+  while (attempt < MAX_DB_RETRIES) {
+    attempt += 1;
+    try {
+      if (attempt === 1 && process.env.NODE_ENV === 'development' && params) {
+        params.forEach((param, index) => {
+          if (typeof param === 'string' && /[\u0E00-\u0E7F]/.test(param)) {
+            console.log(`🇹🇭 Thai parameter [${index}]:`, param);
+          }
+        });
+      }
+      return await pool.query(text, params);
+    } catch (error) {
+      if (error.message.includes('encoding') || error.message.includes('character')) {
+        console.error('🇹🇭 Possible Thai encoding issue detected');
+        console.error('💡 Suggestion: Check database and client encoding settings');
+      }
+
+      if (attempt >= MAX_DB_RETRIES || !shouldRetry(error)) {
+        throw error;
+      }
+
+      const waitMs = Math.min(500 * attempt, 2000);
+      console.warn(`⚠️ DB query failed (attempt ${attempt}/${MAX_DB_RETRIES}): ${error.message}. Retrying in ${waitMs}ms...`);
+      await delay(waitMs);
     }
-    return await pool.query(text, params);
-  } catch (error) {
-    if (error.message.includes('encoding') || error.message.includes('character')) {
-      console.error('🇹🇭 Possible Thai encoding issue detected');
-      console.error('💡 Suggestion: Check database and client encoding settings');
-    }
-    throw error;
   }
 };
 

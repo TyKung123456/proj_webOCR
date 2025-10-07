@@ -17,6 +17,13 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { CheckCircle, XCircle, Loader, AlertTriangle } from 'lucide-react';
 
+const THEME_STORAGE_KEY = 'app-theme-pref';
+
+const getInitialThemePreference = () => {
+  if (typeof window === 'undefined') return 'system';
+  return localStorage.getItem(THEME_STORAGE_KEY) || 'system';
+};
+
 const FileUploadApp = () => {
   // --- ⭐️ เพิ่มส่วนนี้กลับเข้ามา ---
   // นี่คือส่วนสำคัญที่โหลด Tailwind CSS และสไตล์อื่นๆ จากโค้ดเดิมของคุณ
@@ -77,6 +84,42 @@ const FileUploadApp = () => {
   const [currentTime] = useState(new Date().toLocaleTimeString('th-TH', {
     hour: '2-digit', minute: '2-digit'
   }));
+  const [themePreference, setThemePreference] = useState(getInitialThemePreference);
+  const [systemPrefersDark, setSystemPrefersDark] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+  const isDarkMode = themePreference === 'dark' || (themePreference === 'system' && systemPrefersDark);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleMediaChange = (event) => setSystemPrefersDark(event.matches);
+    media.addEventListener('change', handleMediaChange);
+    return () => media.removeEventListener('change', handleMediaChange);
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDarkMode) {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(THEME_STORAGE_KEY, themePreference);
+  }, [themePreference]);
+
+  const cycleThemePreference = () => {
+    setThemePreference(prev => {
+      if (prev === 'system') return 'dark';
+      if (prev === 'dark') return 'light';
+      return 'system';
+    });
+  };
 
   const loadFiles = async () => {
     try {
@@ -134,7 +177,8 @@ const FileUploadApp = () => {
     files, setFiles, suspiciousGroups, setSelectedFile, setShowReportModal,
     currentDate, currentTime, currentPage, setCurrentPage,
     sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed,
-    setShowUploadModal, setShowChatModal, deleteFile: handleFileDelete
+    setShowUploadModal, setShowChatModal, deleteFile: handleFileDelete,
+    isDarkMode, themePreference, setThemePreference, cycleThemePreference
   };
 
   if (loading) {
@@ -163,7 +207,7 @@ const FileUploadApp = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 dark:text-slate-100 font-sans transition-colors">
       {/* Main Content & Modals */}
       {currentPage === 'home' && <HomePage {...commonProps} />}
       {currentPage === 'groups' && <GroupsPage {...commonProps} />}
@@ -183,7 +227,7 @@ const FileUploadApp = () => {
         pauseOnFocusLoss
         draggable
         pauseOnHover
-        theme="light"
+        theme={isDarkMode ? 'dark' : 'light'}
         transition:Slide
       />
     </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
+import FilePreviewPane from '../components/FilePreviewPane';
 // --- ✨ Icon Imports (Updated) ---
 import {
   AlertTriangle, Eye, Trash2, Download, LineChart, MessageSquarePlus, UploadCloud,
@@ -48,20 +49,34 @@ const StatCard = ({ title, value, icon: Icon, color }) => (
   </div>
 );
 
-const FileCard = ({ file, isSelected, onSelect, onCardClick, isSelectionMode }) => {
+const FileCard = ({ file, isSelected, isActive, onSelect, onPreview, onOpenDetail, isSelectionMode }) => {
   const isFail = file.quality_check_status?.toLowerCase() === 'fail';
+
+  const handleClick = () => {
+    if (isSelectionMode) {
+      onSelect(file.id);
+    } else {
+      onPreview(file);
+    }
+  };
 
   return (
     <div
-      onClick={() => isSelectionMode ? onSelect(file.id) : onCardClick(file)}
-      className={`relative border rounded-2xl shadow-sm transition-all duration-300 ease-in-out cursor-pointer 
-        ${isSelectionMode ? 'hover:shadow-md' : 'hover:shadow-xl hover:-translate-y-1'} 
+      onClick={handleClick}
+      className={`relative border rounded-2xl shadow-sm transition-all duration-300 ease-in-out cursor-pointer
+        ${isSelectionMode ? 'hover:shadow-md' : 'hover:shadow-xl hover:-translate-y-1'}
         ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-500/50' : ''}
+        ${isActive ? 'border-indigo-500/70 ring-2 ring-indigo-500/40' : ''}
         ${isFail ? 'bg-red-100 dark:bg-red-900/60 border-red-300 dark:border-red-800/60' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
     >
       {isSelectionMode && (
         <div className="absolute top-3 left-3" onClick={e => e.stopPropagation()}>
-          <input type="checkbox" className="form-checkbox h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:checked:bg-indigo-500" checked={isSelected} onChange={() => onSelect(file.id)} />
+          <input
+            type="checkbox"
+            className="form-checkbox h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:checked:bg-indigo-500"
+            checked={isSelected}
+            onChange={() => onSelect(file.id)}
+          />
         </div>
       )}
       <div className="p-5">
@@ -74,10 +89,21 @@ const FileCard = ({ file, isSelected, onSelect, onCardClick, isSelectionMode }) 
             <p className="text-sm text-slate-400">ID: {file.id}</p>
           </div>
         </div>
-        <div className="mt-4 space-y-3 text-sm"><div className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><Building size={16} /><span>{file.company_name || '-'}</span></div><div className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><Fingerprint size={16} /><span>{file.pn_name || '-'}</span></div></div>
+        <div className="mt-4 space-y-3 text-sm">
+          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><Building size={16} /><span>{file.company_name || '-'}</span></div>
+          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><Fingerprint size={16} /><span>{file.pn_name || '-'}</span></div>
+        </div>
         <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
           <StatusPill status={file.processing_status} />
-          <SimilarityStatusPill status={file.similarity_status} />
+          <div className="flex items-center gap-2">
+            <SimilarityStatusPill status={file.similarity_status} />
+            <button
+              onClick={(e) => { e.stopPropagation(); onOpenDetail(file); }}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-600 px-3 py-1 text-xs font-semibold text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/40"
+            >
+              <Eye size={14} /> Detail
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -86,47 +112,10 @@ const FileCard = ({ file, isSelected, onSelect, onCardClick, isSelectionMode }) 
 
 const HomePage = ({
   files = [], deleteFile, setSelectedFile, setShowReportModal, currentDate, currentTime, currentPage,
-  setCurrentPage, sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed, setShowUploadModal, setShowChatModal
+  setCurrentPage, sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed, setShowUploadModal,
+  setShowChatModal, isDarkMode, themePreference, cycleThemePreference
 }) => {
-  // ✅ FIXED: Dark mode initialization and management
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  // Initialize dark mode on component mount
-  useEffect(() => {
-    // Check localStorage first, then system preference
-    const savedMode = localStorage.getItem('darkMode');
-    let initialDarkMode = false;
-
-    if (savedMode !== null) {
-      initialDarkMode = JSON.parse(savedMode);
-    } else {
-      initialDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-
-    setIsDarkMode(initialDarkMode);
-
-    // Apply initial theme
-    if (initialDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, []);
-
-  // ✅ FIXED: Apply dark mode to document element when state changes
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
-  }, [isDarkMode]);
-
-  // Toggle dark mode function
-  const toggleDarkMode = () => {
-    setIsDarkMode(prev => !prev);
-  };
+  const [previewFile, setPreviewFile] = useState(null);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -139,6 +128,9 @@ const HomePage = ({
   const [rowsPerPage, setRowsPerPage] = useState(12);
   const [currentTablePage, setCurrentTablePage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'descending' });
+
+  const ThemeIcon = isDarkMode ? Sun : Moon;
+  const themeLabel = themePreference === 'dark' ? 'Dark' : themePreference === 'light' ? 'Light' : 'System';
 
   const filteredFiles = useMemo(() => files.filter(file => {
     const lowercasedFilter = filterText.toLowerCase();
@@ -169,6 +161,15 @@ const HomePage = ({
 
   useEffect(() => { setCurrentTablePage(1); }, [filterText, rowsPerPage, sortConfig, filterProcessingStatus, filterQualityCheck, viewMode]);
   useEffect(() => { setSelectedIds(new Set()); }, [filteredFiles, viewMode, isSelectionMode]);
+  useEffect(() => {
+    if (filteredFiles.length === 0) {
+      setPreviewFile(null);
+      return;
+    }
+    if (!previewFile || !filteredFiles.some(f => f.id === previewFile.id)) {
+      setPreviewFile(filteredFiles[0]);
+    }
+  }, [filteredFiles, previewFile?.id]);
 
   const handleExportCSV = () => {
     if (filteredFiles.length === 0) {
@@ -228,6 +229,8 @@ const HomePage = ({
   const handleSelectAll = (e) => { if (e.target.checked) { setSelectedIds(new Set(paginatedFiles.map(f => f.id))); } else { setSelectedIds(new Set()); } };
   const handleSelectOne = (id) => { setSelectedIds(prev => { const next = new Set(prev); if (next.has(id)) { next.delete(id); } else { next.add(id); } return next; }); };
   const handleBulkDelete = () => { if (selectedIds.size === 0) return; toast(({ closeToast }) => <ConfirmToast closeToast={closeToast} onConfirm={() => { Array.from(selectedIds).forEach(id => deleteFile(id)); setSelectedIds(new Set()); }} message={`You are about to delete ${selectedIds.size} file(s). This action cannot be undone.`} />, { position: "top-center", autoClose: false, closeOnClick: false, draggable: false, closeButton: false }); };
+  const handlePreviewFile = (file) => setPreviewFile(file);
+  const handleOpenDetail = (fileData) => setSelectedFile(fileData);
 
   const tableHeaders = [
     { label: isSelectionMode ? <input type="checkbox" className="form-checkbox rounded text-indigo-600 focus:ring-indigo-500" onChange={handleSelectAll} checked={paginatedFiles.length > 0 && selectedIds.size === paginatedFiles.length} /> : null, key: 'select', sortable: false },
@@ -286,11 +289,11 @@ const HomePage = ({
           <div className="flex items-center gap-4">
             {/* ✅ FIXED: Dark mode toggle button */}
             <button
-              onClick={toggleDarkMode}
+              onClick={cycleThemePreference}
               className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              title={`Theme: ${themeLabel} (tap to change)`}
             >
-              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+              <ThemeIcon size={20} />
             </button>
             <div className="text-right">
               <div className="font-semibold text-slate-700 dark:text-slate-300">{currentDate}</div>
@@ -301,190 +304,198 @@ const HomePage = ({
 
         {/* Scrollable Main Content */}
         <main className="flex-1 overflow-y-auto">
-          <div className="p-8 space-y-8 pb-24">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="p-8 pb-24 space-y-8">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
               <StatCard title="Total Files" value={files.length} icon={Files} color={{ bg: 'bg-blue-50 dark:bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400' }} />
               <StatCard title="Files Today" value={files.filter(f => (f.uploaded_at || f.uploadedAt || '').includes(today)).length} icon={CalendarClock} color={{ bg: 'bg-green-50 dark:bg-green-500/10', text: 'text-green-600 dark:text-green-400' }} />
               <StatCard title="Pending Review" value={files.filter(f => (f.processing_status || '').toLowerCase() === 'pending' || (f.processing_status || '').toLowerCase() === 'no').length} icon={Loader} color={{ bg: 'bg-amber-50 dark:bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400' }} />
               <StatCard title="Processed" value={files.filter(f => (f.processing_status || '').toLowerCase() === 'complete' || (f.processing_status || '').toLowerCase() === 'processed').length} icon={ScanEye} color={{ bg: 'bg-indigo-50 dark:bg-indigo-500/10', text: 'text-indigo-600 dark:text-indigo-400' }} />
             </div>
 
-            {/* Files Table/Grid */}
-            <div className="bg-white dark:bg-slate-800/50 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-700/50">
-              {/* Controls */}
-              <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="relative flex-grow min-w-[250px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <input type="text" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Search by name, company, or P/N..." className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg w-full focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none transition dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200 dark:placeholder-slate-400 dark:focus:ring-indigo-500 dark:focus:border-indigo-500" />
-                  </div>
-                  <div className="flex items-center flex-wrap gap-2">
-                    <div className="flex items-center gap-1">
-                      <Filter size={16} className="text-slate-500 dark:text-slate-400" />
-                      <select value={filterProcessingStatus} onChange={e => setFilterProcessingStatus(e.target.value)} className="px-2 py-1.5 border-0 bg-transparent text-sm font-medium text-slate-600 dark:text-slate-300 focus:ring-0 outline-none">
-                        <option value="all">All Statuses</option>
-                        <option value="complete">Complete</option>
-                        <option value="processing">Processing</option>
-                        <option value="pending">Pending</option>
-                        <option value="failed">Failed</option>
-                      </select>
+            <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
+              <div className="flex-1">
+                <div className="bg-white dark:bg-slate-800/50 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-700/50">
+                  <div className="p-4 border-b border-slate-200 dark:border-slate-800">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="relative flex-grow min-w-[250px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                        <input type="text" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Search by name, company, or P/N..." className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg w-full focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none transition dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200 dark:placeholder-slate-400 dark:focus:ring-indigo-500 dark:focus:border-indigo-500" />
+                      </div>
+                      <div className="flex items-center flex-wrap gap-2">
+                        <div className="flex items-center gap-1">
+                          <Filter size={16} className="text-slate-500 dark:text-slate-400" />
+                          <select value={filterProcessingStatus} onChange={e => setFilterProcessingStatus(e.target.value)} className="px-2 py-1.5 border-0 bg-transparent text-sm font-medium text-slate-600 dark:text-slate-300 focus:ring-0 outline-none">
+                            <option value="all">All Statuses</option>
+                            <option value="complete">Complete</option>
+                            <option value="processing">Processing</option>
+                            <option value="pending">Pending</option>
+                            <option value="failed">Failed</option>
+                          </select>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <select value={filterQualityCheck} onChange={e => setFilterQualityCheck(e.target.value)} className="px-2 py-1.5 border-0 bg-transparent text-sm font-medium text-slate-600 dark:text-slate-300 focus:ring-0 outline-none">
+                            <option value="all">All Quality</option>
+                            <option value="pass">Pass</option>
+                            <option value="fail">Fail</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={handleExportCSV} disabled={filteredFiles.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-800 dark:text-blue-200 dark:hover:bg-blue-700 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105">
+                          <Download size={16} /> Export CSV
+                        </button>
+                        <button onClick={() => setShowReportModal(true)} disabled={files.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-800 dark:text-green-200 dark:hover:bg-green-700 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105">
+                          <LineChart size={16} /> Generate Report
+                        </button>
+                        <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
+                        <button onClick={handleToggleSelectionMode} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${isSelectionMode ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600'}`}>
+                          {isSelectionMode ? <X size={16} /> : <MousePointerClick size={16} />}
+                          {isSelectionMode ? 'Cancel' : 'Select'}
+                        </button>
+                        <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
+                        <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
+                          <List size={20} />
+                        </button>
+                        <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg ${viewMode === 'grid' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
+                          <LayoutGrid size={20} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <select value={filterQualityCheck} onChange={e => setFilterQualityCheck(e.target.value)} className="px-2 py-1.5 border-0 bg-transparent text-sm font-medium text-slate-600 dark:text-slate-300 focus:ring-0 outline-none">
-                        <option value="all">All Quality</option>
-                        <option value="pass">Pass</option>
-                        <option value="fail">Fail</option>
-                      </select>
-                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={handleExportCSV} disabled={filteredFiles.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-800 dark:text-blue-200 dark:hover:bg-blue-700 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105">
-                      <Download size={16} /> Export CSV
-                    </button>
-                    <button onClick={() => setShowReportModal(true)} disabled={files.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-800 dark:text-green-200 dark:hover:bg-green-700 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105">
-                      <LineChart size={16} /> Generate Report
-                    </button>
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
-                    <button onClick={handleToggleSelectionMode} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${isSelectionMode ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600'}`}>
-                      {isSelectionMode ? <X size={16} /> : <MousePointerClick size={16} />}
-                      {isSelectionMode ? 'Cancel' : 'Select'}
-                    </button>
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
-                    <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
-                      <List size={20} />
-                    </button>
-                    <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg ${viewMode === 'grid' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
-                      <LayoutGrid size={20} />
-                    </button>
-                  </div>
-                </div>
-              </div>
 
-              {/* Content Area */}
-              <div className="p-4 md:p-6">
-                {viewMode === 'grid' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-                    {paginatedFiles.length > 0 ? paginatedFiles.map((file, index) => (
-                      <FileCard
-                        key={file.id || `file-${index}`}
-                        file={file}
-                        isSelected={selectedIds.has(file.id)}
-                        onSelect={handleSelectOne}
-                        onCardClick={setSelectedFile}
-                        isSelectionMode={isSelectionMode}
-                      />
-                    )) : (
-                      <div className="col-span-full text-center py-16 text-slate-500 dark:text-slate-400">
-                        <FolderOpen className="mx-auto text-slate-400 dark:text-slate-500" size={48} />
-                        <p className="mt-4 font-semibold text-lg">No Files Found</p>
-                        <p>Try adjusting your search or filters.</p>
+                  <div className="p-4 md:p-6">
+                    {viewMode === 'grid' ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+                        {paginatedFiles.length > 0 ? paginatedFiles.map((file, index) => (
+                          <FileCard
+                            key={file.id || `file-${index}`}
+                            file={file}
+                            isSelected={selectedIds.has(file.id)}
+                            isActive={previewFile?.id === file.id}
+                            onSelect={handleSelectOne}
+                            onPreview={handlePreviewFile}
+                            onOpenDetail={handleOpenDetail}
+                            isSelectionMode={isSelectionMode}
+                          />
+                        )) : (
+                          <div className="col-span-full text-center py-16 text-slate-500 dark:text-slate-400">
+                            <FolderOpen className="mx-auto text-slate-400 dark:text-slate-500" size={48} />
+                            <p className="mt-4 font-semibold text-lg">No Files Found</p>
+                            <p>Try adjusting your search or filters.</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                          <thead className="bg-slate-50 dark:bg-slate-900/50">
+                            <tr className="border-b-2 border-slate-200 dark:border-slate-800">
+                              {tableHeaders.map(h => (
+                                <th key={h.key} onClick={h.sortable && h.key !== 'select' && h.key !== 'status_icon' ? () => requestSort(h.key) : undefined}
+                                  className={`px-3 py-4 font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider ${h.key === 'id' ? 'text-center' : 'text-left'} ${h.sortable && h.key !== 'select' && h.key !== 'status_icon' ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700' : 'cursor-default'}`}>
+                                  {h.label} {h.sortable && getSortIcon(h.key)}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                            {paginatedFiles.length > 0 ? (paginatedFiles.map((file, index) => {
+                              const isSelected = selectedIds.has(file.id);
+                              const isFail = file.quality_check_status?.toLowerCase() === 'fail';
+                              const isActivePreview = previewFile?.id === file.id;
+
+                              let rowClass = 'transition-colors duration-200 cursor-pointer';
+                              if (isSelected) {
+                                rowClass += ' bg-indigo-100 dark:bg-indigo-900/50';
+                              } else if (isFail) {
+                                rowClass += ' bg-red-100 hover:bg-red-200/60 dark:bg-red-900/60 dark:hover:bg-red-900/80';
+                              } else {
+                                rowClass += ' hover:bg-slate-50 dark:hover:bg-slate-800 even:bg-slate-50/50 dark:even:bg-slate-800/50';
+                              }
+                              if (isActivePreview) {
+                                rowClass += ' ring-2 ring-indigo-400/50';
+                              }
+
+                              return (
+                                <tr
+                                  key={file.id || `row-${index}`}
+                                  onClick={() => isSelectionMode ? handleSelectOne(file.id) : handlePreviewFile(file)}
+                                  className={rowClass}
+                                >
+                                  <td className="px-3 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
+                                    {isSelectionMode && <input type="checkbox" className="form-checkbox h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:checked:bg-indigo-500" checked={isSelected} onChange={() => handleSelectOne(file.id)} />}
+                                  </td>
+                                  <td className="px-3 py-3 w-8 text-center">
+                                    {file.quality_check_status?.toLowerCase() === 'pass' && <CheckCircle2 className="text-green-500 mx-auto" size={18} />}
+                                    {file.quality_check_status?.toLowerCase() === 'fail' && <XCircle className="text-red-500 mx-auto" size={18} />}
+                                  </td>
+                                  <td className="px-3 py-3 text-center text-slate-500 dark:text-slate-400 font-mono">{file.id}</td>
+                                  <td className="px-3 py-3 font-semibold text-slate-800 dark:text-slate-100 break-words">{file.filename || 'Unknown'}</td>
+                                  <td className="px-3 py-3 text-slate-500 dark:text-slate-400 break-words">{file.company_name || '-'}</td>
+                                  <td className="px-3 py-3 text-slate-500 dark:text-slate-400 break-words">{file.pn_name || '-'}</td>
+                                  <td className="px-3 py-3 text-slate-500 dark:text-slate-400">{new Date(file.uploadedAt || file.uploaded_at || Date.now()).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</td>
+                                  <td className="px-3 py-3 text-center"><StatusPill status={file.processing_status} /></td>
+                                  <td className="px-3 py-3 text-center"><SimilarityStatusPill status={file.similarity_status} /></td>
+                                  <td className="px-3 py-3">
+                                    <div className="flex justify-center items-center gap-2">
+                                      <button onClick={(e) => { e.stopPropagation(); handleOpenDetail(file); }} title="View Details" className="p-2 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 rounded-md transition">
+                                        <Eye size={18} />
+                                      </button>
+                                      <button onClick={(e) => { e.stopPropagation(); handleDeleteConfirm(file.id); }} title="Delete" className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-md transition">
+                                        <Trash2 size={18} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })) : (
+                              <tr>
+                                <td colSpan={tableHeaders.length} className="text-center py-16 text-slate-500 dark:text-slate-400">
+                                  <FolderOpen className="mx-auto text-slate-400 dark:text-slate-500" size={48} />
+                                  <p className="mt-4 font-semibold text-lg">No Files Found</p>
+                                  <p>Try adjusting your search or filters.</p>
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-slate-50 dark:bg-slate-900/50">
-                        <tr className="border-b-2 border-slate-200 dark:border-slate-800">
-                          {tableHeaders.map(h => (
-                            <th key={h.key} onClick={h.sortable && h.key !== 'select' && h.key !== 'status_icon' ? () => requestSort(h.key) : undefined}
-                              className={`px-3 py-4 font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider ${h.key === 'id' ? 'text-center' : 'text-left'} ${h.sortable && h.key !== 'select' && h.key !== 'status_icon' ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700' : 'cursor-default'}`}>
-                              {h.label} {h.sortable && getSortIcon(h.key)}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                        {paginatedFiles.length > 0 ? (paginatedFiles.map((file, index) => {
-                          const isSelected = selectedIds.has(file.id);
-                          const isFail = file.quality_check_status?.toLowerCase() === 'fail';
 
-                          let rowClass = 'transition-colors duration-200 cursor-pointer';
-                          if (isSelected) {
-                            rowClass += ' bg-indigo-100 dark:bg-indigo-900/50';
-                          } else if (isFail) {
-                            rowClass += ' bg-red-100 hover:bg-red-200/60 dark:bg-red-900/60 dark:hover:bg-red-900/80';
-                          } else {
-                            rowClass += ' hover:bg-slate-50 dark:hover:bg-slate-800 even:bg-slate-50/50 dark:even:bg-slate-800/50';
-                          }
-
-                          return (
-                            <tr
-                              key={file.id || `row-${index}`}
-                              onClick={() => isSelectionMode ? handleSelectOne(file.id) : setSelectedFile(file)}
-                              className={rowClass}
-                            >
-                              <td className="px-3 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
-                                {isSelectionMode && <input type="checkbox" className="form-checkbox h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:checked:bg-indigo-500" checked={isSelected} onChange={() => handleSelectOne(file.id)} />}
-                              </td>
-                              <td className="px-3 py-3 w-8 text-center">
-                                {file.quality_check_status?.toLowerCase() === 'pass' && <CheckCircle2 className="text-green-500 mx-auto" size={18} />}
-                                {file.quality_check_status?.toLowerCase() === 'fail' && <XCircle className="text-red-500 mx-auto" size={18} />}
-                              </td>
-                              <td className="px-3 py-3 text-center text-slate-500 dark:text-slate-400 font-mono">{file.id}</td>
-                              <td className="px-3 py-3 font-semibold text-slate-800 dark:text-slate-100 break-words">{file.filename || 'Unknown'}</td>
-                              <td className="px-3 py-3 text-slate-500 dark:text-slate-400 break-words">{file.company_name || '-'}</td>
-                              <td className="px-3 py-3 text-slate-500 dark:text-slate-400 break-words">{file.pn_name || '-'}</td>
-                              <td className="px-3 py-3 text-slate-500 dark:text-slate-400">{new Date(file.uploadedAt || file.uploaded_at || Date.now()).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</td>
-                              <td className="px-3 py-3 text-center"><StatusPill status={file.processing_status} /></td>
-                              <td className="px-3 py-3 text-center"><SimilarityStatusPill status={file.similarity_status} /></td>
-                              <td className="px-3 py-3">
-                                <div className="flex justify-center items-center gap-2">
-                                  <button onClick={(e) => { e.stopPropagation(); setSelectedFile(file); }} title="View Details" className="p-2 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 rounded-md transition">
-                                    <Eye size={18} />
-                                  </button>
-                                  <button onClick={(e) => { e.stopPropagation(); handleDeleteConfirm(file.id); }} title="Delete" className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-md transition">
-                                    <Trash2 size={18} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })) : (
-                          <tr>
-                            <td colSpan={tableHeaders.length} className="text-center py-16 text-slate-500 dark:text-slate-400">
-                              <FolderOpen className="mx-auto text-slate-400 dark:text-slate-500" size={48} />
-                              <p className="mt-4 font-semibold text-lg">No Files Found</p>
-                              <p>Try adjusting your search or filters.</p>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              {/* Pagination & Selection Controls */}
-              <div className="flex items-center justify-between p-4 border-t border-slate-200 dark:border-slate-800">
-                <div className="flex-1 min-h-[36px]">
-                  {isSelectionMode && selectedIds.size > 0 && (
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">{selectedIds.size} item(s) selected</span>
-                      <button onClick={handleBulkDelete} className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 font-semibold rounded-lg shadow-sm hover:bg-red-200 transition text-sm dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900">
-                        <Trash2 size={16} /> Delete Selected
-                      </button>
+                  <div className="flex items-center justify-between p-4 border-t border-slate-200 dark:border-slate-800">
+                    <div className="flex-1 min-h-[36px]">
+                      {isSelectionMode && selectedIds.size > 0 && (
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">{selectedIds.size} item(s) selected</span>
+                          <button onClick={handleBulkDelete} className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 font-semibold rounded-lg shadow-sm hover:bg-red-200 transition text-sm dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900">
+                            <Trash2 size={16} /> Delete Selected
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-slate-600 dark:text-slate-400">Page {currentTablePage} of {Math.ceil(sortedFiles.length / rowsPerPage) || 1}</span>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setCurrentTablePage(p => Math.max(p - 1, 1))} disabled={currentTablePage === 1} className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed" title="Previous Page">
-                      <ChevronsLeft size={18} />
-                    </button>
-                    <button onClick={() => setCurrentTablePage(p => Math.min(p + 1, Math.ceil(sortedFiles.length / rowsPerPage)))} disabled={currentTablePage * rowsPerPage >= sortedFiles.length} className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed" title="Next Page">
-                      <ChevronsRight size={18} />
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-slate-600 dark:text-slate-400">Page {currentTablePage} of {Math.ceil(sortedFiles.length / rowsPerPage) || 1}</span>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setCurrentTablePage(p => Math.max(p - 1, 1))} disabled={currentTablePage === 1} className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed" title="Previous Page">
+                          <ChevronsLeft size={18} />
+                        </button>
+                        <button onClick={() => setCurrentTablePage(p => Math.min(p + 1, Math.ceil(sortedFiles.length / rowsPerPage)))} disabled={currentTablePage * rowsPerPage >= sortedFiles.length} className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed" title="Next Page">
+                          <ChevronsRight size={18} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              <aside className="w-full xl:w-[24rem] xl:sticky xl:top-28">
+                <FilePreviewPane file={previewFile} onOpenDetail={handleOpenDetail} />
+              </aside>
             </div>
           </div>
         </main>
-      </div>
-
+        </div>
       {/* Floating Action Buttons */}
       <div className="fixed bottom-8 right-8 flex flex-row gap-4 z-40">
         <button onClick={() => setShowChatModal(true)} title="Chat with AI" className="bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-full shadow-lg transform transition-all hover:scale-110">
